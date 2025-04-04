@@ -44,8 +44,8 @@ var SupportedCommands = map[string]handlers.CommandHandler{
 
 var rootCmd = &cobra.Command{
 	Use:   "sai",
-	Short: "SAI is a smart software command runner",
-	Long: `SAI is a CLI tool that lets you manage software components via a consistent command interface.
+	Short: "SAI whatever on every software everywhere",
+	Long: `SAI is a tool that lets you manage software components via a consistent command interface.
 Usage:
   sai <software> <command> [flags]
 Example:

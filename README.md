@@ -83,12 +83,17 @@ sai <software> <action> [provider]
 
 2. Build the project:
    ```
-   go build -o sai ./cmd/main.go
+   go build -o sai
    ```
 
 3. Run the CLI:
    ```
+   # Interactive mode:
+   ./sai <action> <software>
+
+   # Unattended mode:
    ./sai <software> <action> [provider]
+
    ```
 
 ## Contributing
