@@ -109,7 +109,7 @@ Find more examples of sai commands as code in the [examples](examples/) director
 3. Run the CLI:
    ```
    # Interactive mode:
-   ./sai <action> [software]
+   ./sai <action> <software>
 
    # Unattended mode:
    ./sai <software> <action> [provider]
