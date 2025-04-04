@@ -14,4 +14,4 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
         cache: false
-    - run: go build -o sai ./cmd/main.go
+    - run: go build -o sai
