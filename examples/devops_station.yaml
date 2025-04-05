@@ -1,0 +1,20 @@
+# This is a sample configuration for a Cloud / SysAdmi / DevOps  (Linux / MacOS / Windows) station.
+---
+sai:
+  install:
+    - vscode
+    - git
+    - docker
+    - docker-compose
+    - awscli
+    - gcloud
+    - azure-cli
+    - kubectl
+    - helm
+    - terraform
+    - packer
+    - ansible
+    - prometheus
+    - grafana
+    - puppet
+    

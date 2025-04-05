@@ -1,0 +1,18 @@
+# This is an example to gather information about the environment of a custom webapp
+# Outputs from public software are automatically generated
+# The one for my_webapp needs custom cosfigurations (to implement via a provider)
+
+---
+sai:
+  info:
+    - nginx
+    - mysql
+  debug:
+    - nginx
+    - mysql
+  log:
+    - nginx
+    - mysql
+    - my_webapp
+  troubleshoot:
+    - my_webapp

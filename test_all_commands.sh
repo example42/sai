@@ -126,6 +126,13 @@ echo -e "${GREEN}Testing flags...${NC}"
 
 # Some actions should have a default unattended output valid of all software:
 ./sai status # Shows status of all running services 
+./sai help # Shows help of all available commands
 
+# Apply special action (applies sai.yaml file with actions to run)
+./sai apply # Apply local sai.yaml file in interactive mode
+./sai apply --force # Apply, for real, sai.yaml file unattended
+./sai apply --dry-run # Shows what will be done (Default)
+./sai apply examples/devops_station.yaml # Apply specific sai file (in interactive mode)
+./sai apply examples/devops_station.yaml -y # Apply specific sai file (for real)
 
 echo "All tests completed!"

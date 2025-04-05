@@ -1,0 +1,16 @@
+# This is an example of a development station configuration for Go developer station (Linux / MacOS / Windows).
+---
+sai:
+  install:
+    - vscode
+    - git
+    - docker
+    - docker-compose
+    - go
+    - awscli
+    - gcloud
+    - azure-cli
+    - kubectl
+    - helm
+    - terraform
+    - packer
