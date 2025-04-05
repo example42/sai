@@ -1,0 +1,12 @@
+# This is an example to install a custom webapp using the source provider
+# It installs also the necessary stack
+
+---
+sai:
+  install:
+    nginx: {}      
+    mysql: {}
+    my_webapp:
+      source:
+        url: https://github.com/myusername/my_webapp.git
+        branch: main

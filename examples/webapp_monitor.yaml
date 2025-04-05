@@ -1,0 +1,11 @@
+# This is an example to monitor a custom web app.
+# It checks the status of the underlying services and the web app itselft via a custom check
+
+---
+sai:
+  status:
+    - nginx
+    - ssh
+    - mysql
+  check:
+    - my_webapp
