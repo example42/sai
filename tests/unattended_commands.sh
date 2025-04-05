@@ -15,32 +15,10 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}===== TESTING PACKAGE MANAGEMENT COMMANDS =====${NC}"
 
 echo -e "${GREEN}Testing install command...${NC}"
-# By default, the command should explore the available providers support for
-# the action desired and show alternative options:
-./sai install nginx
-# Output like: Available providers for install:
-# 1. brew 
-# 2. apt
-# 3. dnf
-# 4. pacman
-# User selects provider from the tui
 
-# Alternative to force untattended installation:
+# Force unattended installation in interactive mode:
 ./sai install nginx -f
 ./sai install nginx --force
-
-# Alternative approact software based, is made for unattended operations:
-./sai nginx install # Just installs nginx with the default provider
-
-# Multiple installation options (multiple options, which one to choose?
-echo -e "${GREEN}Testing differnt install providers...${NC}"
-./sai nginx install --provider flatpak
-or:
-./sai nginx install flatpak
-or:
-./sai install nginx --provider flatpak
-or:
-./sai install nginx flatpak 
 
 # Support, via providers, different installation methods
 ./sai install nginx source
@@ -92,13 +70,12 @@ or:
 ./sai nginx build rpm
 ./sai nginx build source 
 
-
 # AI inferences to ask or seek information about the software
 ./sai nginx ask
 ./sai nginx search
 
 # Manage config files (future)
-./sai nginx config ....
+# ./sai nginx config ....
 
 
 # Test flags combinations (TO DECIDE which ones to use)
@@ -127,12 +104,5 @@ echo -e "${GREEN}Testing flags...${NC}"
 # Some actions should have a default unattended output valid of all software:
 ./sai status # Shows status of all running services 
 ./sai help # Shows help of all available commands
-
-# Apply special action (applies sai.yaml file with actions to run)
-./sai apply # Apply local sai.yaml file in interactive mode
-./sai apply --force # Apply, for real, sai.yaml file unattended
-./sai apply --dry-run # Shows what will be done (Default)
-./sai apply examples/devops_station.yaml # Apply specific sai file (in interactive mode)
-./sai apply examples/devops_station.yaml -y # Apply specific sai file (for real)
 
 echo "All tests completed!"
