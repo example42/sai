@@ -9,6 +9,31 @@ import (
 	"sai/cmd/providers/os/service"
 )
 
+var (
+	yes   bool
+	force bool
+)
+
+// SetYes sets the automatic yes mode
+func SetYes(value bool) {
+	yes = value
+}
+
+// IsYes returns whether automatic yes mode is enabled
+func IsYes() bool {
+	return yes
+}
+
+// SetForce sets the force mode
+func SetForce(value bool) {
+	force = value
+}
+
+// IsForce returns whether force mode is enabled
+func IsForce() bool {
+	return force
+}
+
 // CommandHandler function type
 type CommandHandler func(string, string)
 
