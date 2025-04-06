@@ -12,15 +12,14 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}===== INTERACTIVE TEST =====${NC}"
 
 echo -e "${GREEN}Testing install command...${NC}"
-# By default, the command should explore the available providers support for
-# the action desired and show alternative options:
 ./sai install nginx
-# Output like: Available providers for install:
-# 1. brew 
-# 2. apt
-# 3. dnf
-# 4. pacman
-# User selects provider from the tui
+# By default, the install command with a software should propmpt the user for confirmation:
+# 1. Y/y to proceed and run the shown command to install 
+# 2. A/a to show all the available install options with the current providers
+
+# To perform unattended installation, user the -y or --yes flag:
+./sai install nginx -y
+./sai install nginx --yes
 
 echo -e "${GREEN}Testing service management commands...${NC}"
 # Shows the status of the service nginx for each provider
