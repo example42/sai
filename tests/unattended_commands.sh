@@ -10,7 +10,9 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # By default sai runs everywhere and offers actions to run on software using normal system commands.
-# Bu default it shows the command which is going to run and asks for user confirmation.
+# By default:
+# If the action does changes on the systems: it shows the command which is going to run and asks for user confirmation.
+# If the action is safe and will not change the system: it shows and run the command
 
 echo -e "${BLUE}===== TESTING PACKAGE MANAGEMENT COMMANDS =====${NC}"
 
@@ -21,85 +23,71 @@ echo -e "${GREEN}Testing install command...${NC}"
 ./sai install nginx --force
 
 # Support, via providers, different installation methods
-./sai install nginx source
-./sai install nginx container
-./sai install nginx snap
-./sai install nginx tarball
-./sai install nginx upstream
+./sai install nginx --provider source --yes
+./sai install nginx --provider container --yes
+./sai install nginx --provider snap --yes
+./sai install nginx --provider tarball --yes
+./sai install nginx --provider upstream --yes
 
 # Once installed general service management commands:
 echo -e "${GREEN}Testing service management commands...${NC}"
 # Shows the status of the service nginx for each provider
 ./sai status nginx # Default behaviour: let user select provider, showing options
 or:
-./sai nginx status # Default behvaiours: shows status from default provider
+./sai status # Default behvaiours: shows status from default provider
 
 # All the following service management commands are available:
-./sai nginx status
-./sai nginx start
-./sai nginx stop
-./sai nginx restart
-./sai nginx reload
-./sai nginx enable
-./sai nginx disable
+# TO DECIDE: If -y needed here
+./sai status nginx -y
+./sai start nginx -y 
+./sai stop nginx -y 
+./sai restart nginx -y 
+./sai reload nginx -y
+./sai enable nginx -y 
+./sai disable nginx -y 
 
 # All the following package management commands are available:
-./sai nginx install
-./sai nginx uninstall
-./sai nginx update
-./sai nginx upgrade
+./sai install nginx -y
+./sai uninstall nginx -y 
+./sai update nginx -y 
+./sai upgrade nginx -y 
 
 # Various commands to list, search, info, :
-./sai nginx list
-./sai nginx info
-./sai nginx log
-./sai nginx help
-./sai nginx debug
-./sai nginx troubleshoot
+./sai list nginx
+./sai info nginx
+./sai log nginx
+./sai help 
+./sai debug nginx
+./sai troubleshoot nginx
 
 # Monitoring commands:
-./sai nginx monitor
-./sai nginx log
-./sai nginx inspect
-./sai nginx inspect
-./sai nginx status
-./sai nginx check
+./sai monitor nginx
+./sai log nginx
+./sai inspect nginx
+./sai status nginx
+./sai check nginx
 
 # Building commands:
-./sai nginx build container
-./sai nginx build rpm
-./sai nginx build source 
+./sai build container -y
+./sai build rpm -y 
+./sai build source -y 
 
 # AI inferences to ask or seek information about the software
-./sai nginx ask
-./sai nginx search
+./sai ask
+./sai search
 
 # Manage config files (future)
-# ./sai nginx config ....
+# ./sai config ....
 
 
 # Test flags combinations (TO DECIDE which ones to use)
 echo -e "${GREEN}Testing flags...${NC}"
 ./sai --provider apt nginx install
 
-./sai nginx install --dry-run 
-./sai nginx install --force
+./sai install --dry-run 
 
-# Force unattended installation
-./sai nginx install apt --force
-./sai nginx install apt -f
-./sai nginx install apt --yes # as force?
-./sai nginx install apt -y
-
-# Simulate installation (TO DECIDE)
-./sai --provider brew --dry-run nginx install
-./sai nginx install --provider apt --noop
-./sai nginx install --provider apt --dry-run
-./sai nginx install --provider apt --noop
-./sai nginx install apt --dry-run
-./sai nginx install apt --noop # as dry-run?
-./sai nginx install --dry-run
-./sai nginx install --provider brew --dry-run
+./sai install apt --yes # as force?
+./sai install apt -y
 
 # Some actions should have a default unattended output valid of all software:
 ./sai status # Shows status of all running services 
