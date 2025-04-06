@@ -8,61 +8,52 @@ SAI is a command line that allows you to perfom:
 
 ## Synopsis
 ```
-sai <software> <action> [provider]
-sai <action> [software] [provider] # This applies only to reserved actions
+sai <action> [software] [options]
 ```
 
 ### Parameters
-1. **`<software>`**: The name of the software to manage.
+1. **`<action>`**: The operation to perform on the software.
+   - Reserved Actions:
+     - `install`, `test`, `build`, `log`, `check`, `observe`, `trace`, `config`, `info`, `debug`, `troubleshoot`, `monitor`, `upgrade`, `uninstall`, `status`, `start`, `stop`, `restart`, `enable`, `disable`, `list`, `search`, `update`,  `ask`, `help`, `apply`, `manage`, `sbom` ... 
+
+
+2. **`[software]`**: The name of the software to manage.
    - Examples: `nginx`, `docker`, `opentofu`, `mysql`, `redis` ... every software for which there's sai data
 
-2. **`<action>`**: The operation to perform on the software.
-   - Reserved Actions:
-     - `install`, `test`, `build`, `log`, `check`, `observe`, `trace`, `config`, `info`, `debug`, `troubleshoot`, `monitor`, `upgrade`, `uninstall`, `status`, `start`, `stop`, `restart`, `enable`, `disable`, `list`, `search`, `update`,  `ask`, `help`, `apply`... 
 
-3. **`[provider]`** (optional): The specific implementation for software actions.
-   - Examples: `rpm`, `apt`, `brew`, `winget`, `helm`, `kubectl`...
+3. **`[options]`** (options): The specific implementation for software actions.
+   - Examples: specify provider --provider=`rpm`, `apt`, `brew`, `winget`, `helm`, `kubectl`...
 
 ## Command line usage examples
 1. Install an application and manage it:
    ```
-   sai nginx install
-   sai nginx status
-   sai nginx start
-   sai nginx stop
-   sai nginx enable
-   sai nginx disable
+   sai install nginx
+   sai status nginx
+   sai start nginx
+   sai stop nginx
+   sai enable nginx 
+   sai disable nginx 
    ```
 
 2. Check, monitor and troubleshoot:
    ```
-   sai tomcat check
-   sai tomcat log
-   sai tomcat troubleshoot
-   sai tomcat debug
-   sai tomcat info
-   sai tomcat monitor
-   sai tomcat observe
-   sai tomcat trace
-   ```
-
-3. Build different images:
-   ```
-   sai myapp build rpm
-   sai myapp build apt
-   sai myapp build brew
-   sai myapp build winget
-   sai myapp build helm
-   sai myapp build container   
+   sai check tomcat 
+   sai log tomcat 
+   sai troubleshoot tomcat 
+   sai debug tomcat 
+   sai info tomcat 
+   sai monitor tomcat 
+   sai observe tomcat 
+   sai trace tomcat 
    ```
 
 4. Ask information about a software:
    ```
-   sai terraform ask
-   sai terraform help
-   sai terraform info
-   sai terraform config
-   sai terraform troubleshoot
+   sai ask terraform 
+   sai help terraform 
+   sai info terraform 
+   sai config terraform 
+   sai troubleshoot terraform 
    ```
 
 ## As code examples:
@@ -108,11 +99,7 @@ Find more examples of sai commands as code in the [examples](examples/) director
 
 3. Run the CLI:
    ```
-   # Interactive mode:
    ./sai <action> [software]
-
-   # Unattended mode:
-   ./sai <software> <action> [provider]
 
    ```
 

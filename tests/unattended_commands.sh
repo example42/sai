@@ -32,74 +32,72 @@ echo -e "${GREEN}Testing service management commands...${NC}"
 # Shows the status of the service nginx for each provider
 ./sai status nginx # Default behaviour: let user select provider, showing options
 or:
-./sai nginx status # Default behvaiours: shows status from default provider
+./sai status # Default behvaiours: shows status from default provider
 
 # All the following service management commands are available:
-./sai nginx status
-./sai nginx start
-./sai nginx stop
-./sai nginx restart
-./sai nginx reload
-./sai nginx enable
-./sai nginx disable
+./sai status nginx
+./sai start nginx
+./sai stop nginx
+./sai restart nginx
+./sai reload nginx
+./sai enable nginx
+./sai disable nginx
 
 # All the following package management commands are available:
-./sai nginx install
-./sai nginx uninstall
-./sai nginx update
-./sai nginx upgrade
+./sai install nginx
+./sai uninstall nginx
+./sai update nginx
+./sai upgrade nginx
 
 # Various commands to list, search, info, :
-./sai nginx list
-./sai nginx info
-./sai nginx log
-./sai nginx help
-./sai nginx debug
-./sai nginx troubleshoot
+./sai list nginx
+./sai info nginx
+./sai log nginx
+./sai help 
+./sai debug nginx
+./sai troubleshoot nginx
 
 # Monitoring commands:
-./sai nginx monitor
-./sai nginx log
-./sai nginx inspect
-./sai nginx inspect
-./sai nginx status
-./sai nginx check
+./sai monitor nginx
+./sai log nginx
+./sai inspect nginx
+./sai status nginx
+./sai check nginx
 
 # Building commands:
-./sai nginx build container
-./sai nginx build rpm
-./sai nginx build source 
+./sai build container
+./sai build rpm
+./sai build source 
 
 # AI inferences to ask or seek information about the software
-./sai nginx ask
-./sai nginx search
+./sai ask
+./sai search
 
 # Manage config files (future)
-# ./sai nginx config ....
+# ./sai config ....
 
 
 # Test flags combinations (TO DECIDE which ones to use)
 echo -e "${GREEN}Testing flags...${NC}"
 ./sai --provider apt nginx install
 
-./sai nginx install --dry-run 
-./sai nginx install --force
+./sai install --dry-run 
+./sai install --force
 
 # Force unattended installation
-./sai nginx install apt --force
-./sai nginx install apt -f
-./sai nginx install apt --yes # as force?
-./sai nginx install apt -y
+./sai install apt --force
+./sai install apt -f
+./sai install apt --yes # as force?
+./sai install apt -y
 
 # Simulate installation (TO DECIDE)
-./sai --provider brew --dry-run nginx install
-./sai nginx install --provider apt --noop
-./sai nginx install --provider apt --dry-run
-./sai nginx install --provider apt --noop
-./sai nginx install apt --dry-run
-./sai nginx install apt --noop # as dry-run?
-./sai nginx install --dry-run
-./sai nginx install --provider brew --dry-run
+./sai install --provider apt --noop
+./sai install --provider apt --dry-run
+./sai install --provider apt --noop
+./sai install apt --dry-run
+./sai install apt --noop # as dry-run?
+./sai install --dry-run
+./sai install --provider brew --dry-run
 
 # Some actions should have a default unattended output valid of all software:
 ./sai status # Shows status of all running services 

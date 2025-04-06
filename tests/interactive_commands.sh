@@ -25,8 +25,6 @@ echo -e "${GREEN}Testing install command...${NC}"
 echo -e "${GREEN}Testing service management commands...${NC}"
 # Shows the status of the service nginx for each provider
 ./sai status nginx # Default behaviour: let user select provider, showing options
-or:
-./sai nginx status # Default behvaiours: shows status from default provider
 
 # Some actions should have a default unattended output valid of all software:
 ./sai status # Shows status of all running services 
