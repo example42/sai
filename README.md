@@ -25,7 +25,8 @@ sai <action> [software] [options]
 
 2. **`[software]`**: The name of the software to manage.
    - Examples: `nginx`, `docker`, `opentofu`, `mysql`, `redis` ... every software for which there's sai data
-
+   - Special software: `all` refers to all available software in the system
+  
 3. **`[options]`** (options): The specific implementation for software actions.
    --provider , -p : Specify the provider to user
    --dry-run , --noop: Run in noop mode without doing changes
