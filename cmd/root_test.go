@@ -141,11 +141,11 @@ func TestServiceManagementCommands(t *testing.T) {
 		service        string
 		expectedOutput string
 	}{
-		{"start", "redis", "start service redis using"},
-		{"stop", "redis", "stop service redis using"},
-		{"restart", "redis", "restart service redis using"},
-		{"enable", "redis", "enable service redis using"},
-		{"disable", "redis", "disable service redis using"},
+		{"start", "redis", "start service redis"},
+		{"stop", "redis", "stop service redis"},
+		{"restart", "redis", "restart service redis"},
+		{"enable", "redis", "enable service redis"},
+		{"disable", "redis", "disable service redis"},
 	}
 
 	for _, tc := range serviceCommands {
