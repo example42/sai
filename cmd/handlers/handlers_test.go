@@ -80,11 +80,11 @@ func TestBaseHandlerServiceCommands(t *testing.T) {
 		service        string
 		expectedOutput string
 	}{
-		{func() HandlerInterface { return NewStartHandler() }, "start", "redis", "start service redis using"},
-		{func() HandlerInterface { return NewStopHandler() }, "stop", "redis", "stop service redis using"},
-		{func() HandlerInterface { return NewRestartHandler() }, "restart", "redis", "restart service redis using"},
-		{func() HandlerInterface { return NewEnableHandler() }, "enable", "redis", "enable service redis using"},
-		{func() HandlerInterface { return NewDisableHandler() }, "disable", "redis", "disable service redis using"},
+		{func() HandlerInterface { return NewStartHandler() }, "start", "redis", "start service redis"},
+		{func() HandlerInterface { return NewStopHandler() }, "stop", "redis", "stop service redis"},
+		{func() HandlerInterface { return NewRestartHandler() }, "restart", "redis", "restart service redis"},
+		{func() HandlerInterface { return NewEnableHandler() }, "enable", "redis", "enable service redis"},
+		{func() HandlerInterface { return NewDisableHandler() }, "disable", "redis", "disable service redis"},
 	}
 
 	for _, tc := range testCases {
