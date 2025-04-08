@@ -1,10 +1,10 @@
 # SAI (pick the acronym you like)
 
-Do Everything with every Software, Everywhere
+Do Everything with Every Software, Everywhere
 
 ## Overview
-SAI is a command line that allows you to perfom:
-**actions** (many actions) on **every software** (with correct saidata), in different systems (Linux (RedHat, Debian, Suse, Arch, etc.), Windows, macOS, containers, Kubernetes, Nix... ) relying on easy to create **providers** that implement one or more actions.
+SAI is a command line tool that allows you to perfom:
+**actions** (many actions) on **every software** (with correct saidata), in different environments (Linux (RedHat, Debian, Suse, Arch, etc.), Windows, macOS, containers, Kubernetes, Nix... ) relying on easy to create **providers** that implement one or more actions.
 
 ## Synopsis
 ```
