@@ -45,3 +45,5 @@ Thumbs.db
 *.local.yaml
 *.local.yml
 .env.local
+
+sai 
