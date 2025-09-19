@@ -212,7 +212,8 @@ func (pl *ProviderLoader) validateProviderLogic(provider *types.ProviderData) er
 		"package_manager", "container", "binary", "source", "cloud", "custom",
 		"debug", "trace", "profile", "security", "sbom", "troubleshoot",
 		"network", "audit", "backup", "filesystem", "system", "monitoring",
-		"io", "memory", "monitor", "process",
+		"io", "memory", "monitor", "process", "file", "directory", "command",
+		"service", "port", "log", "config", "data", "temp", "cache",
 	}
 	
 	typeValid := false

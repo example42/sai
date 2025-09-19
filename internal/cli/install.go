@@ -208,6 +208,10 @@ func createManagers(cfg *config.Config, formatter *output.OutputFormatter) (inte
 		resourceValidator,
 	)
 
+	// Create output formatter and UI
+	formatter := output.NewOutputFormatter(cfg, verbose, quiet, jsonOutput)
+	userInterface := ui.NewUserInterface(cfg, formatter)
+
 	// Create action manager
 	actionManager := action.NewActionManager(
 		providerManager,
@@ -215,6 +219,8 @@ func createManagers(cfg *config.Config, formatter *output.OutputFormatter) (inte
 		genericExecutor,
 		resourceValidator,
 		cfg,
+		userInterface,
+		formatter,
 	)
 
 	// Create user interface

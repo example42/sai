@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"sai/internal/interfaces"
 	"sai/internal/types"
 )
 
@@ -311,11 +312,10 @@ func TestValidateResources(t *testing.T) {
 		},
 	}
 
-	result := validator.ValidateResources(saidata)
+	result, err := validator.ValidateResources(saidata)
+	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	t.Logf("Validation result: %s", result.GetSummary())
-	
 	// Check that runtime flags were set
 	assert.NotNil(t, result.MissingFiles)
 	assert.NotNil(t, result.MissingDirectories)
@@ -324,18 +324,18 @@ func TestValidateResources(t *testing.T) {
 	assert.NotNil(t, result.InvalidPorts)
 
 	// Should be able to proceed even with missing resources
-	assert.True(t, result.CanProceed())
+	assert.True(t, result.CanProceed)
 }
 
 func TestResourceValidationResult(t *testing.T) {
 	t.Run("ValidResult", func(t *testing.T) {
-		result := &ResourceValidationResult{Valid: true}
-		assert.Equal(t, "All resources validated successfully", result.GetSummary())
-		assert.True(t, result.CanProceed())
+		result := &interfaces.ResourceValidationResult{Valid: true, CanProceed: true}
+		assert.True(t, result.Valid)
+		assert.True(t, result.CanProceed)
 	})
 
 	t.Run("InvalidResult", func(t *testing.T) {
-		result := &ResourceValidationResult{
+		result := &interfaces.ResourceValidationResult{
 			Valid:              false,
 			MissingFiles:       []string{"/missing/file"},
 			MissingDirectories: []string{"/missing/dir"},
@@ -344,15 +344,14 @@ func TestResourceValidationResult(t *testing.T) {
 			InvalidPorts:       []int{70000},
 		}
 		
-		summary := result.GetSummary()
-		assert.Contains(t, summary, "Resource validation issues found")
-		assert.Contains(t, summary, "/missing/file")
-		assert.Contains(t, summary, "/missing/dir")
-		assert.Contains(t, summary, "/missing/cmd")
-		assert.Contains(t, summary, "missing-service")
-		assert.Contains(t, summary, "70000")
+		assert.False(t, result.Valid)
+		assert.Contains(t, result.MissingFiles, "/missing/file")
+		assert.Contains(t, result.MissingDirectories, "/missing/dir")
+		assert.Contains(t, result.MissingCommands, "/missing/cmd")
+		assert.Contains(t, result.MissingServices, "missing-service")
+		assert.Contains(t, result.InvalidPorts, 70000)
 		
-		assert.True(t, result.CanProceed()) // Still allows proceeding
+		assert.True(t, result.CanProceed) // Still allows proceeding
 	})
 }
 

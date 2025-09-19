@@ -2,7 +2,6 @@ package template
 
 import (
 	"testing"
-
 	"sai/internal/types"
 )
 
