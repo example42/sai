@@ -66,22 +66,22 @@
     - Implement provider caching and performance optimization
     - _Requirements: 1.3, 8.1, 8.2, 8.5_
 
-- [ ] 5. Implement saidata management and intelligent defaults
-  - [ ] 5.1 Create saidata manager for existing samples
+- [x] 5. Implement saidata management and intelligent defaults
+  - [x] 5.1 Create saidata manager for existing samples
     - Implement SaidataManager that loads from docs/saidata_samples/
     - Add hierarchical loading (software/{prefix}/{software}/default.yaml)
     - Implement OS-specific override support ({os}/{os_version}.yaml)
     - Add validation against saidata-0.2-schema.json
     - _Requirements: 8.3, 8.4_
 
-  - [ ] 5.2 Build intelligent defaults generator
+  - [x] 5.2 Build intelligent defaults generator
     - Implement DefaultsGenerator for missing saidata scenarios
     - Add platform-specific default path generation (Linux, macOS, Windows)
     - Create default package, service, file, and command path resolution
     - Implement safety validation to prevent execution with non-existent resources
     - _Requirements: 8.3, 8.4, 9.1, 9.2, 9.3, 9.4_
 
-  - [ ] 5.3 Create resource validation system
+  - [x] 5.3 Create resource validation system
     - Implement ResourceValidator for file, service, command, directory existence
     - Add validation for ports, processes, and system resources
     - Create validation result structures with detailed missing resource information
