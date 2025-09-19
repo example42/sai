@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/xeipuuv/gojsonschema"
+	"sai/internal/interfaces"
 	"sai/internal/types"
 )
 
@@ -215,9 +216,30 @@ func (r *ResourceValidator) ValidatePort(port types.Port) bool {
 	return port.Port > 0 && port.Port <= 65535
 }
 
+// ValidateContainer checks if a container configuration is valid
+func (r *ResourceValidator) ValidateContainer(container types.Container) bool {
+	// This is a placeholder - in a real implementation, you'd check if the container exists
+	// For now, we'll just validate that the container name is not empty
+	return container.Name != ""
+}
+
+// ValidateSystemRequirements checks system requirements
+func (r *ResourceValidator) ValidateSystemRequirements(requirements *types.Requirements) (*interfaces.SystemValidationResult, error) {
+	// This is a placeholder implementation
+	result := &interfaces.SystemValidationResult{
+		Valid:                   true,
+		InsufficientMemory:      false,
+		InsufficientDisk:        false,
+		MissingDependencies:     []string{},
+		UnsupportedPlatform:     false,
+		Warnings:                []string{},
+	}
+	return result, nil
+}
+
 // ValidateResources validates all resources in saidata
-func (r *ResourceValidator) ValidateResources(saidata *types.SoftwareData) *ResourceValidationResult {
-	result := &ResourceValidationResult{
+func (r *ResourceValidator) ValidateResources(saidata *types.SoftwareData) (*interfaces.ResourceValidationResult, error) {
+	result := &interfaces.ResourceValidationResult{
 		Valid: true,
 	}
 	
@@ -271,49 +293,6 @@ func (r *ResourceValidator) ValidateResources(saidata *types.SoftwareData) *Reso
 		}
 	}
 	
-	return result
+	return result, nil
 }
 
-// ResourceValidationResult contains the results of resource validation
-type ResourceValidationResult struct {
-	Valid              bool
-	MissingFiles       []string
-	MissingDirectories []string
-	MissingCommands    []string
-	MissingServices    []string
-	InvalidPorts       []int
-	Warnings           []string
-}
-
-// CanProceed returns true if the validation allows proceeding with operations
-func (r *ResourceValidationResult) CanProceed() bool {
-	// For now, we allow proceeding even with missing resources
-	// In a real implementation, this might depend on the specific action
-	return true
-}
-
-// GetSummary returns a human-readable summary of validation results
-func (r *ResourceValidationResult) GetSummary() string {
-	if r.Valid {
-		return "All resources validated successfully"
-	}
-	
-	summary := "Resource validation issues found:"
-	if len(r.MissingFiles) > 0 {
-		summary += fmt.Sprintf("\n- Missing files: %v", r.MissingFiles)
-	}
-	if len(r.MissingDirectories) > 0 {
-		summary += fmt.Sprintf("\n- Missing directories: %v", r.MissingDirectories)
-	}
-	if len(r.MissingCommands) > 0 {
-		summary += fmt.Sprintf("\n- Missing commands: %v", r.MissingCommands)
-	}
-	if len(r.MissingServices) > 0 {
-		summary += fmt.Sprintf("\n- Missing services: %v", r.MissingServices)
-	}
-	if len(r.InvalidPorts) > 0 {
-		summary += fmt.Sprintf("\n- Invalid ports: %v", r.InvalidPorts)
-	}
-	
-	return summary
-}

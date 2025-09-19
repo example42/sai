@@ -11,13 +11,13 @@ import (
 )
 
 var (
-	cfgFile    string
-	provider   string
-	verbose    bool
-	dryRun     bool
-	yes        bool
-	quiet      bool
-	jsonOutput bool
+	cfgFile      string
+	providerFlag string
+	verbose      bool
+	dryRun       bool
+	yes          bool
+	quiet        bool
+	jsonOutput   bool
 	
 	// Global configuration instance
 	globalConfig *config.Config
@@ -69,7 +69,7 @@ func init() {
 	// Global flags with detailed help text
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", 
 		"config file path (searches: ./sai.yaml, ~/.sai/config.yaml, /etc/sai/config.yaml)")
-	rootCmd.PersistentFlags().StringVarP(&provider, "provider", "p", "", 
+	rootCmd.PersistentFlags().StringVarP(&providerFlag, "provider", "p", "", 
 		"force specific provider (apt, brew, docker, etc.)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, 
 		"enable detailed output and logging information")
@@ -151,8 +151,8 @@ func initializeConfig() error {
 
 // applyFlagOverrides applies command-line flag values to the global configuration
 func applyFlagOverrides() {
-	if provider != "" {
-		globalConfig.DefaultProvider = provider
+	if providerFlag != "" {
+		globalConfig.DefaultProvider = providerFlag
 	}
 	
 	// Override confirmation settings based on --yes flag
@@ -183,7 +183,7 @@ func GetGlobalConfig() *config.Config {
 func GetGlobalFlags() GlobalFlags {
 	return GlobalFlags{
 		Config:     cfgFile,
-		Provider:   provider,
+		Provider:   providerFlag,
 		Verbose:    verbose,
 		DryRun:     dryRun,
 		Yes:        yes,
@@ -206,7 +206,7 @@ type GlobalFlags struct {
 // ValidateFlags performs validation on flag combinations and values
 func ValidateFlags() error {
 	// Validate provider name if specified
-	if provider != "" {
+	if providerFlag != "" {
 		validProviders := []string{
 			"apt", "brew", "dnf", "yum", "pacman", "zypper", "apk",
 			"docker", "helm", "npm", "pip", "cargo", "go", "gem",
@@ -215,7 +215,7 @@ func ValidateFlags() error {
 		
 		isValid := false
 		for _, validProvider := range validProviders {
-			if provider == validProvider {
+			if providerFlag == validProvider {
 				isValid = true
 				break
 			}
@@ -223,7 +223,7 @@ func ValidateFlags() error {
 		
 		if !isValid {
 			return fmt.Errorf("invalid provider '%s'. Valid providers: %s", 
-				provider, strings.Join(validProviders, ", "))
+				providerFlag, strings.Join(validProviders, ", "))
 		}
 	}
 

@@ -126,21 +126,21 @@
     - Create command completion and help system
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
-  - [ ] 8.2 Implement software management commands
+  - [x] 8.2 Implement software management commands
     - Create install, uninstall, upgrade, search, info, version commands
     - Add provider selection logic with user prompts for multiple options
     - Implement confirmation prompts for system-changing operations
     - Add support for --yes flag to skip confirmations
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 2.5, 9.1, 9.2, 9.3, 9.4_
 
-  - [ ] 8.3 Create service management commands
+  - [x] 8.3 Create service management commands
     - Implement start, stop, restart, enable, disable, status commands
     - Add service validation and existence checking
     - Create service logs command with proper output formatting
     - Implement service monitoring commands (cpu, memory, io)
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
 
-  - [ ] 8.4 Build system information and batch commands
+  - [x] 8.4 Build system information and batch commands
     - Implement list command for installed software across all providers
     - Add general system commands (logs, cpu, memory, io without software parameter)
     - Create stats command for provider and system capability information
