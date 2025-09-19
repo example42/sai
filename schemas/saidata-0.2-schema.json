@@ -76,7 +76,7 @@
           "description": "Compatibility matrix showing which providers work on which platforms",
           "items": { "$ref": "#/definitions/compatibility_entry" }
         },
-        "versions": { "$ref": "#/definitions/version_compatibility" }
+        "versions": { "$ref": "#/definitions/versions" }
       }
     }
   },

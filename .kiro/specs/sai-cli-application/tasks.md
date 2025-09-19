@@ -7,22 +7,22 @@
   - Set up build configuration (Makefile) for cross-platform compilation
   - _Requirements: 7.1, 7.2, 8.1_
 
-- [ ] 2. Implement core data structures and YAML parsing
-  - [ ] 2.1 Create provider data structures matching existing YAML files
+- [x] 2. Implement core data structures and YAML parsing
+  - [x] 2.1 Create provider data structures matching existing YAML files
     - Define ProviderData, ProviderInfo, Action, Step structs with YAML tags
     - Implement YAML unmarshaling for existing provider files (apt.yaml, brew.yaml, etc.)
     - Add validation against providerdata-0.1-schema.json
     - Create unit tests for parsing existing provider YAML files
     - _Requirements: 8.2, 8.3_
 
-  - [ ] 2.2 Create saidata structures matching existing schema
+  - [x] 2.2 Create saidata structures matching existing schema
     - Define SoftwareData, Package, Service, File, Directory, Command, Port structs
     - Implement YAML parsing for existing saidata samples (apache, elasticsearch, etc.)
     - Add validation against saidata-0.2-schema.json
     - Add runtime validation flags (Exists, IsActive) for safety checks
     - _Requirements: 8.3, 8.4_
 
-  - [ ] 2.3 Define core interfaces and error handling
+  - [x] 2.3 Define core interfaces and error handling
     - Create ProviderManager, SaidataManager, ActionManager interfaces
     - Define GenericExecutor, DefaultsGenerator, ResourceValidator interfaces
     - Create structured error types and result structures
