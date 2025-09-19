@@ -5,7 +5,7 @@ provider:
   name: "cat"
   display_name: "Show file"
   description: "Show files contents using cat command"
-  type: "file"
+  type: "filesystem"
   platforms: ["linux", "macos", "windows"]
   executable: "cat"  # Main executable for availability detection
   capabilities: ["config"]

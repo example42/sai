@@ -1,0 +1,253 @@
+# GoReleaser configuration for SAI CLI
+project_name: sai
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: sai
+    main: ./cmd/sai
+    binary: sai
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.buildTime={{.Date}}
+      - -X main.goVersion={{.Env.GO_VERSION}}
+    flags:
+      - -trimpath
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+archives:
+  - id: sai
+    builds:
+      - sai
+    name_template: >-
+      {{ .ProjectName }}-{{ .Version }}-
+      {{- if eq .Os "darwin" }}macOS
+      {{- else }}{{ .Os }}{{ end }}-
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - docs/**/*
+      - providers/**/*
+      - schemas/**/*
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - '^style:'
+      - '^refactor:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: 'New Features'
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: 'Performance Improvements'
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 2
+    - title: 'Other Changes'
+      order: 999
+
+release:
+  github:
+    owner: sai-cli
+    name: sai
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## SAI CLI {{ .Tag }}
+    
+    Welcome to this new release of SAI CLI! 🎉
+    
+    ### Quick Installation
+    
+    **Unix/Linux/macOS:**
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.sh | bash
+    ```
+    
+    **Windows PowerShell:**
+    ```powershell
+    iwr -useb https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.ps1 | iex
+    ```
+    
+    **Homebrew (macOS/Linux):**
+    ```bash
+    brew install sai-cli/tap/sai
+    ```
+    
+    ### Manual Installation
+    
+    Download the appropriate binary for your platform from the assets below.
+  footer: |
+    ## Verification
+    
+    All binaries are signed and checksums are provided in `checksums.txt`.
+    
+    **Verify checksum:**
+    ```bash
+    sha256sum -c checksums.txt
+    ```
+    
+    ---
+    
+    **Full Changelog**: https://github.com/sai-cli/sai/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+brews:
+  - name: sai
+    repository:
+      owner: sai-cli
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    folder: Formula
+    homepage: https://github.com/sai-cli/sai
+    description: "Universal software management CLI tool"
+    license: MIT
+    skip_upload: auto
+    test: |
+      system "#{bin}/sai version"
+    install: |
+      bin.install "sai"
+      
+      # Install shell completions
+      generate_completions_from_executable(bin/"sai", "completion")
+      
+      # Install man page if available
+      if File.exist?("sai.1")
+        man1.install "sai.1"
+      end
+
+nfpms:
+  - id: sai
+    package_name: sai
+    vendor: SAI CLI Team
+    homepage: https://github.com/sai-cli/sai
+    maintainer: SAI CLI Team <team@sai-cli.dev>
+    description: Universal software management CLI tool
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    meta: true
+    contents:
+      - src: ./README.md
+        dst: /usr/share/doc/sai/README.md
+      - src: ./LICENSE
+        dst: /usr/share/doc/sai/LICENSE
+      - src: ./providers/
+        dst: /usr/share/sai/providers/
+      - src: ./schemas/
+        dst: /usr/share/sai/schemas/
+    scripts:
+      postinstall: |
+        echo "SAI CLI installed successfully!"
+        echo "Run 'sai --help' to get started."
+      preremove: |
+        echo "Removing SAI CLI..."
+
+publishers:
+  - name: fury.io
+    ids:
+      - sai
+    dir: "{{ dir .ArtifactPath }}"
+    cmd: curl -F package=@{{ .ArtifactName }} https://{{ .Env.FURY_TOKEN }}@push.fury.io/sai-cli/
+
+dockers:
+  - image_templates:
+      - "ghcr.io/sai-cli/sai:{{ .Version }}-amd64"
+      - "ghcr.io/sai-cli/sai:latest-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+  - image_templates:
+      - "ghcr.io/sai-cli/sai:{{ .Version }}-arm64"
+      - "ghcr.io/sai-cli/sai:latest-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "ghcr.io/sai-cli/sai:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/sai-cli/sai:{{ .Version }}-amd64"
+      - "ghcr.io/sai-cli/sai:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/sai-cli/sai:latest"
+    image_templates:
+      - "ghcr.io/sai-cli/sai:latest-amd64"
+      - "ghcr.io/sai-cli/sai:latest-arm64"
+
+signs:
+  - cmd: cosign
+    env:
+      - COSIGN_EXPERIMENTAL=1
+    certificate: '${artifact}.pem'
+    args:
+      - sign-blob
+      - '--output-certificate=${certificate}'
+      - '--output-signature=${signature}'
+      - '${artifact}'
+      - --yes
+    artifacts: checksum
+    output: true
+
+sboms:
+  - artifacts: archive
+  - id: source
+    artifacts: source
+
+milestones:
+  - close: true
+    fail_on_error: false
+    name_template: "{{ .Tag }}"
