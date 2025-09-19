@@ -220,6 +220,29 @@ type ConfigManager interface {
 	WatchConfig(configPath string, callback func(*Config)) error
 }
 
+// TemplateEngine provides template rendering with saidata functions
+type TemplateEngine interface {
+	// Render renders a template string with the given context
+	Render(templateStr string, context *TemplateContext) (string, error)
+	
+	// ValidateTemplate validates a template string without executing it
+	ValidateTemplate(templateStr string) error
+	
+	// SetSafetyMode enables or disables safety mode
+	SetSafetyMode(enabled bool)
+	
+	// SetSaidata sets the current saidata context for template functions
+	SetSaidata(saidata *types.SoftwareData)
+}
+
+// TemplateContext holds the context for template rendering
+type TemplateContext struct {
+	Software  string
+	Provider  string
+	Saidata   *types.SoftwareData
+	Variables map[string]string
+}
+
 // Logger provides structured logging
 type Logger interface {
 	// Debug logs debug messages
