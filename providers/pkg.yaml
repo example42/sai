@@ -1,0 +1,83 @@
+# PKG Provider Data - FreeBSD package manager
+version: "1.0"
+
+provider:
+  name: "pkg"
+  display_name: "FreeBSD Package Manager"
+  description: "Binary package manager for FreeBSD and DragonFly BSD"
+  type: "package_manager"
+  platforms: ["freebsd", "dragonfly"]
+  executable: "pkg"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+
+actions:
+  install:
+    description: "Install packages via PKG"
+    template: "pkg install -y {{sai_package('*', 'name', 'pkg')}}"
+    timeout: 600
+    detection: "pkg info {{sai_package(0, 'name', 'pkg')}} >/dev/null 2>&1"
+    validation:
+      command: "pkg info | grep {{sai_package(0, 'name', 'pkg')}}"
+      expected_exit_code: 0
+    rollback: "pkg delete -y {{sai_package('*', 'name', 'pkg')}}"
+
+  uninstall:
+    description: "Remove packages via PKG"
+    template: "pkg delete -y {{sai_package('*', 'name', 'pkg')}}"
+    detection: "pkg info {{sai_package(0, 'name', 'pkg')}} >/dev/null 2>&1"
+    validation:
+      command: "! pkg info | grep {{sai_package(0, 'name', 'pkg')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via PKG"
+    template: "pkg upgrade -y {{sai_package('*', 'name', 'pkg')}}"
+    timeout: 600
+    detection: "pkg info {{sai_package(0, 'name', 'pkg')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start service via service command"
+    template: "service {{sai_service(0, 'service_name', 'pkg')}} start"
+    validation:
+      command: "service {{sai_service(0, 'service_name', 'pkg')}} status"
+      expected_exit_code: 0
+
+  stop:
+    description: "Stop service via service command"
+    template: "service {{sai_service(0, 'service_name', 'pkg')}} stop"
+
+  restart:
+    description: "Restart service via service command"
+    template: "service {{sai_service(0, 'service_name', 'pkg')}} restart"
+
+  enable:
+    description: "Enable service auto-start"
+    template: "sysrc {{sai_service(0, 'service_name', 'pkg')}}_enable=YES"
+
+  disable:
+    description: "Disable service auto-start"
+    template: "sysrc {{sai_service(0, 'service_name', 'pkg')}}_enable=NO"
+
+  status:
+    description: "Check service status"
+    template: "service {{sai_service(0, 'service_name', 'pkg')}} status"
+
+  logs:
+    description: "Show service logs"
+    template: "tail -n 50 {{sai_file('log', 'path', 'pkg')}}"
+
+  info:
+    description: "Show package information"
+    template: "pkg info {{sai_package(0, 'name', 'pkg')}}"
+
+  search:
+    description: "Search for packages"
+    template: "pkg search {{sai_package(0, 'name', 'pkg')}}"
+
+  list:
+    description: "List installed packages"
+    template: "pkg info | grep {{sai_package(0, 'name', 'pkg')}}"
+
+  version:
+    description: "Show package version"
+    template: "pkg info {{sai_package(0, 'name', 'pkg')}} | grep Version"

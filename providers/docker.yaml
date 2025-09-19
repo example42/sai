@@ -1,0 +1,87 @@
+# Docker Provider Data - Container platform
+version: "1.0"
+
+provider:
+  name: "docker"
+  display_name: "Docker"
+  description: "Container platform for building, shipping, and running applications"
+  type: "container"
+  platforms: ["linux", "macos", "windows"]
+  executable: "docker"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "start", "stop", "restart", "status", "logs", "info", "list"]
+
+actions:
+  install:
+    description: "Pull and create Docker container"
+    steps:
+      - name: "pull-image"
+        command: "docker pull {{sai_container(0, 'image', 'docker')}}:{{sai_container(0, 'tag', 'docker')}}"
+      - name: "create-container"
+        command: "docker create --name {{sai_container(0, 'name', 'docker')}} -p {{sai_port(0, 'port', 'docker')}}:{{sai_port(0, 'port', 'docker')}} {{sai_container(0, 'image', 'docker')}}:{{sai_container(0, 'tag', 'docker')}}"
+    timeout: 600
+    validation:
+      command: "docker ps -a | grep {{sai_container(0, 'name', 'docker')}}"
+      expected_exit_code: 0
+    rollback: "docker rm -f {{sai_container(0, 'name', 'docker')}}"
+
+  uninstall:
+    description: "Remove Docker container and image"
+    steps:
+      - name: "stop-container"
+        command: "docker stop {{sai_container(0, 'name', 'docker')}}"
+        ignore_failure: true
+      - name: "remove-container"
+        command: "docker rm {{sai_container(0, 'name', 'docker')}}"
+        ignore_failure: true
+      - name: "remove-image"
+        command: "docker rmi {{sai_container(0, 'image', 'docker')}}:{{sai_container(0, 'tag', 'docker')}}"
+        ignore_failure: true
+
+  upgrade:
+    description: "Upgrade Docker container"
+    steps:
+      - name: "stop-container"
+        command: "docker stop {{sai_container(0, 'name', 'docker')}}"
+      - name: "remove-container"
+        command: "docker rm {{sai_container(0, 'name', 'docker')}}"
+      - name: "pull-new-image"
+        command: "docker pull {{sai_container(0, 'image', 'docker')}}:{{sai_container(0, 'tag', 'docker')}}"
+      - name: "create-new-container"
+        command: "docker create --name {{sai_container(0, 'name', 'docker')}} -p {{sai_port(0, 'port', 'docker')}}:{{sai_port(0, 'port', 'docker')}} {{sai_container(0, 'image', 'docker')}}:{{sai_container(0, 'tag', 'docker')}}"
+      - name: "start-container"
+        command: "docker start {{sai_container(0, 'name', 'docker')}}"
+    timeout: 600
+
+  start:
+    description: "Start Docker container"
+    template: "docker start {{sai_container(0, 'name', 'docker')}}"
+    validation:
+      command: "docker ps | grep {{sai_container(0, 'name', 'docker')}}"
+      expected_exit_code: 0
+
+  stop:
+    description: "Stop Docker container"
+    template: "docker stop {{sai_container(0, 'name', 'docker')}}"
+    validation:
+      command: "docker ps | grep {{sai_container(0, 'name', 'docker')}} || exit 0"
+      expected_exit_code: 0
+
+  restart:
+    description: "Restart Docker container"
+    template: "docker restart {{sai_container(0, 'name', 'docker')}}"
+
+  status:
+    description: "Check Docker container status"
+    template: "docker ps -a | grep {{sai_container(0, 'name', 'docker')}}"
+
+  logs:
+    description: "Show Docker container logs"
+    template: "docker logs --tail 50 {{sai_container(0, 'name', 'docker')}}"
+
+  info:
+    description: "Show Docker image information"
+    template: "docker inspect {{sai_container(0, 'image', 'docker')}}:{{sai_container(0, 'tag', 'docker')}}"
+
+  list:
+    description: "List Docker containers"
+    template: "docker ps -a | grep {{sai_container(0, 'name', 'docker')}}"

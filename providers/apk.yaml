@@ -1,0 +1,93 @@
+# APK Provider Data - Alpine Linux package manager
+version: "1.0"
+
+provider:
+  name: "apk"
+  display_name: "Alpine Package Keeper"
+  description: "Package manager for Alpine Linux"
+  type: "package_manager"
+  platforms: ["alpine"]
+  executable: "apk"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+
+actions:
+  install:
+    description: "Install packages via APK"
+    steps:
+      - name: "update-index"
+        command: "apk update"
+      - name: "install-packages"
+        command: "apk add {{sai_package('*', 'name', 'apk')}}"
+    timeout: 300
+    validation:
+      command: "apk info | grep {{sai_package(0, 'name', 'apk')}}"
+      expected_exit_code: 0
+    rollback: "apk del {{sai_package('*', 'name', 'apk')}}"
+
+  uninstall:
+    description: "Remove packages via APK"
+    template: "apk del {{sai_package('*', 'name', 'apk')}}"
+    detection: "apk info {{sai_package(0, 'name', 'apk')}} >/dev/null 2>&1"
+    validation:
+      command: "! apk info | grep {{sai_package(0, 'name', 'apk')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via APK"
+    steps:
+      - name: "update-index"
+        command: "apk update"
+      - name: "upgrade-packages"
+        command: "apk upgrade {{sai_package('*', 'name', 'apk')}}"
+    timeout: 300
+    detection: "apk info {{sai_package(0, 'name', 'apk')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start service via rc-service"
+    template: "rc-service {{sai_service(0, 'service_name', 'apk')}} start"
+    validation:
+      command: "rc-service {{sai_service(0, 'service_name', 'apk')}} status"
+      expected_output: "started"
+
+  stop:
+    description: "Stop service via rc-service"
+    template: "rc-service {{sai_service(0, 'service_name', 'apk')}} stop"
+    validation:
+      command: "rc-service {{sai_service(0, 'service_name', 'apk')}} status"
+      expected_output: "stopped"
+
+  restart:
+    description: "Restart service via rc-service"
+    template: "rc-service {{sai_service(0, 'service_name', 'apk')}} restart"
+
+  enable:
+    description: "Enable service auto-start"
+    template: "rc-update add {{sai_service(0, 'service_name', 'apk')}} default"
+
+  disable:
+    description: "Disable service auto-start"
+    template: "rc-update del {{sai_service(0, 'service_name', 'apk')}} default"
+
+  status:
+    description: "Check service status"
+    template: "rc-service {{sai_service(0, 'service_name', 'apk')}} status"
+
+  logs:
+    description: "Show service logs"
+    template: "tail -n 50 {{sai_file('log', 'path', 'apk')}}"
+
+  info:
+    description: "Show package information"
+    template: "apk info {{sai_package(0, 'name', 'apk')}}"
+
+  search:
+    description: "Search for packages"
+    template: "apk search {{sai_package(0, 'name', 'apk')}}"
+
+  list:
+    description: "List installed packages"
+    template: "apk info | grep {{sai_package(0, 'name', 'apk')}}"
+
+  version:
+    description: "Show package version"
+    template: "apk info {{sai_package(0, 'name', 'apk')}} | grep '^{{sai_package(0, 'name', 'apk')}}-' | head -1"

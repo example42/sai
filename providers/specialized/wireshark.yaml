@@ -1,0 +1,44 @@
+# WIRESHARK Provider Data - Network protocol analyzer
+version: "1.0"
+
+provider:
+  name: "wireshark"
+  display_name: "Wireshark Protocol Analyzer"
+  description: "Network protocol analysis using Wireshark/tshark"
+  type: "network"
+  platforms: ["linux", "macos", "windows"]
+  executable: "tshark"  # Main executable for availability detection
+  capabilities: ["logs", "info", "search", "list", "upgrade", "version"]
+
+actions:
+  logs:
+    description: "Capture packets with tshark"
+    template: "tshark -i {{interface}} -f 'port {{sai_port()}}' -c {{packet_count}}"
+    variables:
+      interface: "any"
+      packet_count: "100"
+
+  info:
+    description: "Analyze captured packets"
+    template: "tshark -r /tmp/capture-{{metadata.name}}.pcap -Y 'tcp.port == {{sai_port()}}'"
+
+  search:
+    description: "Filter and search packets"
+    template: "tshark -i {{interface}} -f 'host {{target_host}} and port {{sai_port()}}'"
+    variables:
+      interface: "any"
+      target_host: "localhost"
+
+  list:
+    description: "Decode protocols"
+    template: "tshark -r /tmp/capture-{{metadata.name}}.pcap -V"
+
+  upgrade:
+    description: "Export to file"
+    template: "tshark -i {{interface}} -w /tmp/capture-{{metadata.name}}.pcap -f 'port {{sai_port()}}'"
+    variables:
+      interface: "any"
+
+  version:
+    description: "Show Wireshark/tshark version"
+    template: "tshark --version"

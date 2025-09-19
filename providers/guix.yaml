@@ -1,0 +1,91 @@
+# Guix Provider Data - GNU Guix package manager
+version: "1.0"
+
+provider:
+  name: "guix"
+  display_name: "GNU Guix"
+  description: "Transactional package manager and system configuration tool"
+  type: "package_manager"
+  platforms: ["guix", "linux"]
+  executable: "guix"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+
+actions:
+  install:
+    description: "Install packages via Guix"
+    template: "guix install {{sai_package('*', 'name', 'guix')}}"
+    timeout: 600
+    detection: "guix package -I | grep {{sai_package(0, 'name', 'guix')}} >/dev/null 2>&1"
+    validation:
+      command: "guix package -I | grep {{sai_package(0, 'name', 'guix')}}"
+      expected_exit_code: 0
+    rollback: "guix remove {{sai_package('*', 'name', 'guix')}}"
+
+  uninstall:
+    description: "Remove packages via Guix"
+    template: "guix remove {{sai_package('*', 'name', 'guix')}}"
+    detection: "guix package -I | grep {{sai_package(0, 'name', 'guix')}} >/dev/null 2>&1"
+    validation:
+      command: "! guix package -I | grep {{sai_package(0, 'name', 'guix')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via Guix"
+    steps:
+      - name: "pull-updates"
+        command: "guix pull"
+        timeout: 300
+      - name: "upgrade-packages"
+        command: "guix upgrade {{sai_package('*', 'name', 'guix')}}"
+    timeout: 600
+    detection: "guix package -I | grep {{sai_package(0, 'name', 'guix')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start service via herd"
+    template: "herd start {{sai_service(0, 'service_name', 'guix')}}"
+    validation:
+      command: "herd status {{sai_service(0, 'service_name', 'guix')}} | grep started"
+      expected_exit_code: 0
+
+  stop:
+    description: "Stop service via herd"
+    template: "herd stop {{sai_service(0, 'service_name', 'guix')}}"
+    validation:
+      command: "herd status {{sai_service(0, 'service_name', 'guix')}} | grep stopped"
+      expected_exit_code: 0
+
+  restart:
+    description: "Restart service via herd"
+    template: "herd restart {{sai_service(0, 'service_name', 'guix')}}"
+
+  enable:
+    description: "Enable service auto-start"
+    template: "herd enable {{sai_service(0, 'service_name', 'guix')}}"
+
+  disable:
+    description: "Disable service auto-start"
+    template: "herd disable {{sai_service(0, 'service_name', 'guix')}}"
+
+  status:
+    description: "Check service status"
+    template: "herd status {{sai_service(0, 'service_name', 'guix')}}"
+
+  logs:
+    description: "Show service logs"
+    template: "tail -n 50 {{sai_file('log', 'path', 'guix')}}"
+
+  info:
+    description: "Show package information"
+    template: "guix show {{sai_package(0, 'name', 'guix')}}"
+
+  search:
+    description: "Search for packages"
+    template: "guix search {{sai_package(0, 'name', 'guix')}}"
+
+  list:
+    description: "List installed packages"
+    template: "guix package -I | grep {{sai_package(0, 'name', 'guix')}}"
+
+  version:
+    description: "Show package version"
+    template: "guix package -I | grep {{sai_package(0, 'name', 'guix')}} | awk '{print $1\"@\"$2}'"

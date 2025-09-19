@@ -1,0 +1,59 @@
+# GDB Provider Data - GNU Debugger
+version: "1.0"
+
+provider:
+  name: "gdb"
+  display_name: "GNU Debugger"
+  description: "Debug applications using GDB"
+  type: "debug"
+  platforms: ["linux", "macos"]
+  executable: "gdb"  # Main executable for availability detection
+  capabilities: ["debug", "attach", "core_dump", "backtrace", "breakpoint", "watch", "inspect", "profile"]
+
+actions:
+  debug:
+    description: "Start debugging session"
+    template: "gdb {{commands[0].path if commands else metadata.name}} {{debug_args}}"
+    variables:
+      debug_args: "--batch --ex run --ex bt --ex quit"
+
+  attach:
+    description: "Attach to running process"
+    steps:
+      - name: "find-process"
+        command: "pgrep -f {{metadata.name}}"
+      - name: "attach-debugger"
+        command: "gdb -p $(pgrep -f {{metadata.name}}) {{attach_args}}"
+    variables:
+      attach_args: "--batch --ex bt --ex detach --ex quit"
+
+  core_dump:
+    description: "Analyze core dump"
+    template: "gdb {{commands[0].path if commands else metadata.name}} {{core_file}} {{core_args}}"
+    variables:
+      core_file: "/tmp/core.{{metadata.name}}"
+      core_args: "--batch --ex bt --ex quit"
+
+  backtrace:
+    description: "Get stack trace from running process"
+    template: "gdb -p $(pgrep -f {{metadata.name}}) --batch --ex bt --ex detach --ex quit"
+
+  breakpoint:
+    description: "Set breakpoint and debug"
+    template: "gdb {{commands[0].path if commands else metadata.name}} --batch --ex 'break {{breakpoint_location}}' --ex run --ex bt --ex quit"
+    variables:
+      breakpoint_location: "main"
+
+  watch:
+    description: "Watch variable changes"
+    template: "gdb {{commands[0].path if commands else metadata.name}} --batch --ex 'watch {{watch_variable}}' --ex run --ex continue --ex quit"
+    variables:
+      watch_variable: "global_var"
+
+  inspect:
+    description: "Inspect memory and variables"
+    template: "gdb -p $(pgrep -f {{metadata.name}}) --batch --ex 'info registers' --ex 'info locals' --ex detach --ex quit"
+
+  profile:
+    description: "Profile application execution"
+    template: "gdb {{commands[0].path if commands else metadata.name}} --batch --ex 'set logging on' --ex run --ex bt --ex quit"

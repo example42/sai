@@ -1,0 +1,31 @@
+# STAT Provider Data - File/filesystem status
+version: "1.0"
+
+provider:
+  name: "stat"
+  display_name: "File Status"
+  description: "File and filesystem status information using stat command"
+  type: "filesystem"
+  platforms: ["linux", "macos"]
+  capabilities: ["info", "list", "logs", "search", "status"]
+
+actions:
+  info:
+    description: "Show file information"
+    template: "stat {{sai_file(0, 'path') or '/etc/config'}}"
+
+  list:
+    description: "Custom format output"
+    template: "stat --format='%n %s %y' {{sai_file(0, 'path') or '/etc/config'}}"
+
+  logs:
+    description: "Filesystem information"
+    template: "stat -f {{sai_file(0, 'path') or '/tmp'}}"
+
+  search:
+    description: "Dereference symbolic links"
+    template: "stat -L {{sai_file(0, 'path') or '/etc/config'}}"
+
+  status:
+    description: "Terse format output"
+    template: "stat -t {{sai_file(0, 'path') or '/etc/config'}}"

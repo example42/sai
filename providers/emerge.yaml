@@ -1,0 +1,95 @@
+# Emerge Provider Data - Gentoo Linux package manager
+version: "1.0"
+
+provider:
+  name: "emerge"
+  display_name: "Portage Emerge"
+  description: "Source-based package manager for Gentoo Linux"
+  type: "package_manager"
+  platforms: ["gentoo"]
+  executable: "emerge"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+
+actions:
+  install:
+    description: "Install packages via Emerge"
+    steps:
+      - name: "sync-portage"
+        command: "emerge --sync"
+        timeout: 300
+      - name: "install-packages"
+        command: "emerge {{sai_package('*', 'name', 'emerge')}}"
+        timeout: 3600
+    validation:
+      command: "qlist -I | grep {{sai_package(0, 'name', 'emerge')}}"
+      expected_exit_code: 0
+    rollback: "emerge --unmerge {{sai_package('*', 'name', 'emerge')}}"
+
+  uninstall:
+    description: "Remove packages via Emerge"
+    template: "emerge --unmerge {{sai_package('*', 'name', 'emerge')}}"
+    detection: "emerge --search {{sai_package(0, 'name', 'emerge')}} >/dev/null 2>&1"
+    validation:
+      command: "! qlist -I | grep {{sai_package(0, 'name', 'emerge')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via Emerge"
+    steps:
+      - name: "sync-portage"
+        command: "emerge --sync"
+        timeout: 300
+      - name: "upgrade-packages"
+        command: "emerge -u {{sai_package('*', 'name', 'emerge')}}"
+        timeout: 3600
+    detection: "emerge --search {{sai_package(0, 'name', 'emerge')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start service via rc-service"
+    template: "rc-service {{sai_service(0, 'service_name', 'emerge')}} start"
+    validation:
+      command: "rc-service {{sai_service(0, 'service_name', 'emerge')}} status"
+      expected_output: "started"
+
+  stop:
+    description: "Stop service via rc-service"
+    template: "rc-service {{sai_service(0, 'service_name', 'emerge')}} stop"
+    validation:
+      command: "rc-service {{sai_service(0, 'service_name', 'emerge')}} status"
+      expected_output: "stopped"
+
+  restart:
+    description: "Restart service via rc-service"
+    template: "rc-service {{sai_service(0, 'service_name', 'emerge')}} restart"
+
+  enable:
+    description: "Enable service auto-start"
+    template: "rc-update add {{sai_service(0, 'service_name', 'emerge')}} default"
+
+  disable:
+    description: "Disable service auto-start"
+    template: "rc-update del {{sai_service(0, 'service_name', 'emerge')}} default"
+
+  status:
+    description: "Check service status"
+    template: "rc-service {{sai_service(0, 'service_name', 'emerge')}} status"
+
+  logs:
+    description: "Show service logs"
+    template: "tail -n 50 {{sai_file('log', 'path', 'emerge')}}"
+
+  info:
+    description: "Show package information"
+    template: "emerge --info {{sai_package(0, 'name', 'emerge')}}"
+
+  search:
+    description: "Search for packages"
+    template: "emerge --search {{sai_package(0, 'name', 'emerge')}}"
+
+  list:
+    description: "List installed packages"
+    template: "qlist -I | grep {{sai_package(0, 'name', 'emerge')}}"
+
+  version:
+    description: "Show package version"
+    template: "qlist -I {{sai_package(0, 'name', 'emerge')}} | head -1"

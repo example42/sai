@@ -1,0 +1,79 @@
+# Maven Provider Data - Java package manager
+version: "1.0"
+
+provider:
+  name: "maven"
+  display_name: "Apache Maven"
+  description: "Build automation and dependency management tool for Java"
+  type: "package_manager"
+  platforms: ["linux", "macos", "windows"]
+  executable: "mvn"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "status"]
+
+actions:
+  install:
+    description: "Install packages via Maven"
+    template: "mvn dependency:get -Dartifact={{sai_package(0, 'name', 'maven')}}:{{sai_package(0, 'version', 'maven')}}"
+    timeout: 300
+    detection: "mvn dependency:get -Dartifact={{sai_package(0, 'name', 'maven')}} >/dev/null 2>&1"
+    validation:
+      command: "find {{maven_repo}} -name '*{{sai_package(0, 'name', 'maven')}}*' -type f"
+      expected_exit_code: 0
+    rollback: "rm -rf {{maven_repo}}/{{sai_package(0, 'name', 'maven')}}"
+    variables:
+      maven_repo: "~/.m2/repository"
+
+  uninstall:
+    description: "Remove packages via Maven"
+    template: "rm -rf {{maven_repo}}/{{sai_package(0, 'name', 'maven')}}"
+    detection: "mvn dependency:get -Dartifact={{sai_package(0, 'name', 'maven')}} >/dev/null 2>&1"
+    validation:
+      command: "! find {{maven_repo}} -name '*{{sai_package(0, 'name', 'maven')}}*' -type f"
+      expected_exit_code: 0
+    variables:
+      maven_repo: "~/.m2/repository"
+
+  upgrade:
+    description: "Upgrade packages via Maven"
+    template: "mvn dependency:get -Dartifact={{sai_package(0, 'name', 'maven')}}:LATEST"
+    timeout: 300
+    detection: "mvn dependency:get -Dartifact={{sai_package(0, 'name', 'maven')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start Java application"
+    template: "java -jar {{sai_command(0, 'path', 'maven')}}"
+
+  stop:
+    description: "Stop Java application"
+    template: "pkill -f {{sai_package(0, 'name', 'maven')}}"
+
+  restart:
+    description: "Restart Java application"
+    steps:
+      - name: "stop-app"
+        command: "pkill -f {{sai_package(0, 'name', 'maven')}}"
+        ignore_failure: true
+      - name: "start-app"
+        command: "java -jar {{sai_command(0, 'path', 'maven')}}"
+
+  status:
+    description: "Check application status"
+    template: "pgrep -f {{sai_package(0, 'name', 'maven')}}"
+
+  info:
+    description: "Show package information"
+    template: "mvn dependency:tree | grep {{sai_package(0, 'name', 'maven')}}"
+
+  search:
+    description: "Search for packages"
+    template: "mvn dependency:resolve-sources | grep {{sai_package(0, 'name', 'maven')}}"
+
+  list:
+    description: "List installed packages"
+    template: "find {{maven_repo}} -name '*{{sai_package(0, 'name', 'maven')}}*' -type f"
+    variables:
+      maven_repo: "~/.m2/repository"
+
+  version:
+    description: "Show package version"
+    template: "mvn dependency:tree | grep '{{sai_package(0, 'name', 'maven')}}:' | head -1"

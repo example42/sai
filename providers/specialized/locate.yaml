@@ -1,0 +1,31 @@
+# LOCATE Provider Data - Find files by name
+version: "1.0"
+
+provider:
+  name: "locate"
+  display_name: "File Locator"
+  description: "Find files by name using locate database"
+  type: "filesystem"
+  platforms: ["linux", "macos"]
+  capabilities: ["search", "info", "upgrade", "list", "logs"]
+
+actions:
+  search:
+    description: "Search files by name"
+    template: "locate {{metadata.name}}"
+
+  info:
+    description: "Update locate database"
+    template: "updatedb"
+
+  upgrade:
+    description: "Show database statistics"
+    template: "locate -S"
+
+  list:
+    description: "Case insensitive search"
+    template: "locate -i {{metadata.name}}"
+
+  logs:
+    description: "Regex pattern search"
+    template: "locate --regex '.*{{metadata.name}}.*'"

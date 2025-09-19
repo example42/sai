@@ -1,0 +1,73 @@
+# Cargo Provider Data - Rust package manager
+version: "1.0"
+
+provider:
+  name: "cargo"
+  display_name: "Cargo"
+  description: "The Rust package manager"
+  type: "package_manager"
+  platforms: ["linux", "macos", "windows"]
+  executable: "cargo"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "status"]
+
+actions:
+  install:
+    description: "Install packages via Cargo"
+    template: "cargo install {{sai_package('*', 'name', 'cargo')}}"
+    timeout: 600
+    detection: "cargo search {{sai_package(0, 'name', 'cargo')}} >/dev/null 2>&1"
+    validation:
+      command: "cargo install --list | grep {{sai_package(0, 'name', 'cargo')}}"
+      expected_exit_code: 0
+    rollback: "cargo uninstall {{sai_package('*', 'name', 'cargo')}}"
+
+  uninstall:
+    description: "Remove packages via Cargo"
+    template: "cargo uninstall {{sai_package('*', 'name', 'cargo')}}"
+    detection: "cargo search {{sai_package(0, 'name', 'cargo')}} >/dev/null 2>&1"
+    validation:
+      command: "! cargo install --list | grep {{sai_package(0, 'name', 'cargo')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via Cargo"
+    template: "cargo install --force {{sai_package('*', 'name', 'cargo')}}"
+    timeout: 600
+    detection: "cargo search {{sai_package(0, 'name', 'cargo')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start Rust application"
+    template: "{{sai_command(0, 'path', 'cargo')}}"
+
+  stop:
+    description: "Stop Rust application"
+    template: "pkill -f {{sai_package(0, 'name', 'cargo')}}"
+
+  restart:
+    description: "Restart Rust application"
+    steps:
+      - name: "stop-app"
+        command: "pkill -f {{sai_package(0, 'name', 'cargo')}}"
+        ignore_failure: true
+      - name: "start-app"
+        command: "{{sai_command(0, 'path', 'cargo')}}"
+
+  status:
+    description: "Check application status"
+    template: "pgrep -f {{sai_package(0, 'name', 'cargo')}}"
+
+  info:
+    description: "Show package information"
+    template: "cargo search {{sai_package(0, 'name', 'cargo')}} --limit 1"
+
+  search:
+    description: "Search for packages"
+    template: "cargo search {{sai_package(0, 'name', 'cargo')}}"
+
+  list:
+    description: "List installed packages"
+    template: "cargo install --list | grep {{sai_package(0, 'name', 'cargo')}}"
+
+  version:
+    description: "Show package version"
+    template: "cargo install --list | grep '^{{sai_package(0, 'name', 'cargo')}} '"

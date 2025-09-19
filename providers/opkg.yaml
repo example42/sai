@@ -1,0 +1,91 @@
+# OPKG Provider Data - OpenWrt package manager
+version: "1.0"
+
+provider:
+  name: "opkg"
+  display_name: "Open Package Management"
+  description: "Lightweight package manager for OpenWrt and embedded systems"
+  type: "package_manager"
+  platforms: ["openwrt", "embedded"]
+  executable: "opkg"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+
+actions:
+  install:
+    description: "Install packages via OPKG"
+    steps:
+      - name: "update-package-list"
+        command: "opkg update"
+      - name: "install-packages"
+        command: "opkg install {{sai_package('*', 'name', 'opkg')}}"
+    timeout: 300
+    detection: "opkg list-installed | grep {{sai_package(0, 'name', 'opkg')}} >/dev/null 2>&1"
+    validation:
+      command: "opkg list-installed | grep {{sai_package(0, 'name', 'opkg')}}"
+      expected_exit_code: 0
+    rollback: "opkg remove {{sai_package('*', 'name', 'opkg')}}"
+
+  uninstall:
+    description: "Remove packages via OPKG"
+    template: "opkg remove {{sai_package('*', 'name', 'opkg')}}"
+    detection: "opkg list-installed | grep {{sai_package(0, 'name', 'opkg')}} >/dev/null 2>&1"
+    validation:
+      command: "! opkg list-installed | grep {{sai_package(0, 'name', 'opkg')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via OPKG"
+    steps:
+      - name: "update-package-list"
+        command: "opkg update"
+      - name: "upgrade-packages"
+        command: "opkg upgrade {{sai_package('*', 'name', 'opkg')}}"
+    timeout: 300
+    detection: "opkg list-installed | grep {{sai_package(0, 'name', 'opkg')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start service via init script"
+    template: "/etc/init.d/{{sai_service(0, 'service_name', 'opkg')}} start"
+    validation:
+      command: "/etc/init.d/{{sai_service(0, 'service_name', 'opkg')}} status"
+      expected_exit_code: 0
+
+  stop:
+    description: "Stop service via init script"
+    template: "/etc/init.d/{{sai_service(0, 'service_name', 'opkg')}} stop"
+
+  restart:
+    description: "Restart service via init script"
+    template: "/etc/init.d/{{sai_service(0, 'service_name', 'opkg')}} restart"
+
+  enable:
+    description: "Enable service auto-start"
+    template: "/etc/init.d/{{sai_service(0, 'service_name', 'opkg')}} enable"
+
+  disable:
+    description: "Disable service auto-start"
+    template: "/etc/init.d/{{sai_service(0, 'service_name', 'opkg')}} disable"
+
+  status:
+    description: "Check service status"
+    template: "/etc/init.d/{{sai_service(0, 'service_name', 'opkg')}} status"
+
+  logs:
+    description: "Show service logs"
+    template: "logread | grep {{sai_service(0, 'service_name', 'opkg')}}"
+
+  info:
+    description: "Show package information"
+    template: "opkg info {{sai_package(0, 'name', 'opkg')}}"
+
+  search:
+    description: "Search for packages"
+    template: "opkg find {{sai_package(0, 'name', 'opkg')}}"
+
+  list:
+    description: "List installed packages"
+    template: "opkg list-installed | grep {{sai_package(0, 'name', 'opkg')}}"
+
+  version:
+    description: "Show package version"
+    template: "opkg list-installed {{sai_package(0, 'name', 'opkg')}} | awk '{print $1\" \"$3}'"

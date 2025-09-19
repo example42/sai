@@ -1,0 +1,91 @@
+# Slackpkg Provider Data - Slackware package manager
+version: "1.0"
+
+provider:
+  name: "slackpkg"
+  display_name: "Slackware Package Manager"
+  description: "Official package manager for Slackware Linux"
+  type: "package_manager"
+  platforms: ["slackware"]
+  executable: "slackpkg"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+
+actions:
+  install:
+    description: "Install packages via Slackpkg"
+    steps:
+      - name: "update-package-list"
+        command: "slackpkg update"
+      - name: "install-packages"
+        command: "slackpkg install {{sai_package('*', 'name', 'slackpkg')}}"
+    timeout: 600
+    detection: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}} >/dev/null 2>&1"
+    validation:
+      command: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}}"
+      expected_exit_code: 0
+    rollback: "slackpkg remove {{sai_package('*', 'name', 'slackpkg')}}"
+
+  uninstall:
+    description: "Remove packages via Slackpkg"
+    template: "slackpkg remove {{sai_package('*', 'name', 'slackpkg')}}"
+    detection: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}} >/dev/null 2>&1"
+    validation:
+      command: "! ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via Slackpkg"
+    steps:
+      - name: "update-package-list"
+        command: "slackpkg update"
+      - name: "upgrade-packages"
+        command: "slackpkg upgrade {{sai_package('*', 'name', 'slackpkg')}}"
+    timeout: 600
+    detection: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start service via rc script"
+    template: "/etc/rc.d/rc.{{sai_service(0, 'service_name', 'slackpkg')}} start"
+    validation:
+      command: "pgrep -f {{sai_service(0, 'service_name', 'slackpkg')}}"
+      expected_exit_code: 0
+
+  stop:
+    description: "Stop service via rc script"
+    template: "/etc/rc.d/rc.{{sai_service(0, 'service_name', 'slackpkg')}} stop"
+
+  restart:
+    description: "Restart service via rc script"
+    template: "/etc/rc.d/rc.{{sai_service(0, 'service_name', 'slackpkg')}} restart"
+
+  enable:
+    description: "Enable service auto-start"
+    template: "chmod +x /etc/rc.d/rc.{{sai_service(0, 'service_name', 'slackpkg')}}"
+
+  disable:
+    description: "Disable service auto-start"
+    template: "chmod -x /etc/rc.d/rc.{{sai_service(0, 'service_name', 'slackpkg')}}"
+
+  status:
+    description: "Check service status"
+    template: "/etc/rc.d/rc.{{sai_service(0, 'service_name', 'slackpkg')}} status"
+
+  logs:
+    description: "Show service logs"
+    template: "tail -n 50 {{sai_file('log', 'path', 'slackpkg')}}"
+
+  info:
+    description: "Show package information"
+    template: "slackpkg info {{sai_package(0, 'name', 'slackpkg')}}"
+
+  search:
+    description: "Search for packages"
+    template: "slackpkg search {{sai_package(0, 'name', 'slackpkg')}}"
+
+  list:
+    description: "List installed packages"
+    template: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}}"
+
+  version:
+    description: "Show package version"
+    template: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}} | head -1"

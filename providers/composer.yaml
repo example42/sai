@@ -1,0 +1,73 @@
+# Composer Provider Data - PHP package manager
+version: "1.0"
+
+provider:
+  name: "composer"
+  display_name: "Composer"
+  description: "Dependency manager for PHP"
+  type: "package_manager"
+  platforms: ["linux", "macos", "windows"]
+  executable: "composer"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "status"]
+
+actions:
+  install:
+    description: "Install packages via Composer"
+    template: "composer global require {{sai_package('*', 'name', 'composer')}}"
+    timeout: 300
+    detection: "composer show {{sai_package(0, 'name', 'composer')}} >/dev/null 2>&1"
+    validation:
+      command: "composer global show | grep {{sai_package(0, 'name', 'composer')}}"
+      expected_exit_code: 0
+    rollback: "composer global remove {{sai_package('*', 'name', 'composer')}}"
+
+  uninstall:
+    description: "Remove packages via Composer"
+    template: "composer global remove {{sai_package('*', 'name', 'composer')}}"
+    detection: "composer show {{sai_package(0, 'name', 'composer')}} >/dev/null 2>&1"
+    validation:
+      command: "! composer global show | grep {{sai_package(0, 'name', 'composer')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via Composer"
+    template: "composer global update {{sai_package('*', 'name', 'composer')}}"
+    timeout: 300
+    detection: "composer show {{sai_package(0, 'name', 'composer')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start PHP application"
+    template: "php {{sai_command(0, 'path', 'composer')}}"
+
+  stop:
+    description: "Stop PHP application"
+    template: "pkill -f {{sai_package(0, 'name', 'composer')}}"
+
+  restart:
+    description: "Restart PHP application"
+    steps:
+      - name: "stop-app"
+        command: "pkill -f {{sai_package(0, 'name', 'composer')}}"
+        ignore_failure: true
+      - name: "start-app"
+        command: "php {{sai_command(0, 'path', 'composer')}}"
+
+  status:
+    description: "Check application status"
+    template: "pgrep -f {{sai_package(0, 'name', 'composer')}}"
+
+  info:
+    description: "Show package information"
+    template: "composer global info {{sai_package(0, 'name', 'composer')}}"
+
+  search:
+    description: "Search for packages"
+    template: "composer search {{sai_package(0, 'name', 'composer')}}"
+
+  list:
+    description: "List installed packages"
+    template: "composer global show | grep {{sai_package(0, 'name', 'composer')}}"
+
+  version:
+    description: "Show package version"
+    template: "composer global show {{sai_package(0, 'name', 'composer')}} | grep 'versions'"

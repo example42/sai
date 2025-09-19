@@ -1,0 +1,33 @@
+# PMAP Provider Data - Process memory mapping
+version: "1.0"
+
+provider:
+  name: "pmap"
+  display_name: "Process Memory Map"
+  description: "Process memory mapping analysis using pmap"
+  type: "memory"
+  platforms: ["linux", "macos"]
+  capabilities: ["info", "list", "status", "search", "logs"]
+
+actions:
+  info:
+    description: "Show memory mapping"
+    template: "pmap $(pgrep -f {{metadata.name}})"
+
+  list:
+    description: "Extended memory information"
+    template: "pmap -x $(pgrep -f {{metadata.name}})"
+
+  status:
+    description: "Device format mapping"
+    template: "pmap -d $(pgrep -f {{metadata.name}})"
+
+  search:
+    description: "Quiet mode mapping"
+    template: "pmap -q $(pgrep -f {{metadata.name}})"
+
+  logs:
+    description: "Address range mapping"
+    template: "pmap -A {{address_range}} $(pgrep -f {{metadata.name}})"
+    variables:
+      address_range: "low,high"

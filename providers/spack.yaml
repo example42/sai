@@ -1,0 +1,77 @@
+# Spack Provider Data - Scientific computing package manager
+version: "1.0"
+
+provider:
+  name: "spack"
+  display_name: "Spack"
+  description: "A flexible package manager for scientific computing"
+  type: "package_manager"
+  platforms: ["linux", "macos"]
+  executable: "spack"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "status"]
+
+actions:
+  install:
+    description: "Install packages via Spack"
+    template: "spack install {{sai_package('*', 'name', 'spack')}}"
+    timeout: 3600
+    detection: "spack find | grep {{sai_package(0, 'name', 'spack')}} >/dev/null 2>&1"
+    validation:
+      command: "spack find | grep {{sai_package(0, 'name', 'spack')}}"
+      expected_exit_code: 0
+    rollback: "spack uninstall -y {{sai_package('*', 'name', 'spack')}}"
+
+  uninstall:
+    description: "Remove packages via Spack"
+    template: "spack uninstall -y {{sai_package('*', 'name', 'spack')}}"
+    detection: "spack find | grep {{sai_package(0, 'name', 'spack')}} >/dev/null 2>&1"
+    validation:
+      command: "! spack find | grep {{sai_package(0, 'name', 'spack')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via Spack"
+    steps:
+      - name: "uninstall-old"
+        command: "spack uninstall -y {{sai_package('*', 'name', 'spack')}}"
+        ignore_failure: true
+      - name: "install-new"
+        command: "spack install {{sai_package('*', 'name', 'spack')}}"
+    timeout: 3600
+
+  start:
+    description: "Start application"
+    template: "spack load {{sai_package(0, 'name', 'spack')}} && {{sai_command(0, 'path', 'spack')}}"
+
+  stop:
+    description: "Stop application"
+    template: "pkill -f {{sai_package(0, 'name', 'spack')}}"
+
+  restart:
+    description: "Restart application"
+    steps:
+      - name: "stop-app"
+        command: "pkill -f {{sai_package(0, 'name', 'spack')}}"
+        ignore_failure: true
+      - name: "start-app"
+        command: "spack load {{sai_package(0, 'name', 'spack')}} && {{sai_command(0, 'path', 'spack')}}"
+
+  status:
+    description: "Check application status"
+    template: "pgrep -f {{sai_package(0, 'name', 'spack')}}"
+
+  info:
+    description: "Show package information"
+    template: "spack info {{sai_package(0, 'name', 'spack')}}"
+
+  search:
+    description: "Search for packages"
+    template: "spack list | grep {{sai_package(0, 'name', 'spack')}}"
+
+  list:
+    description: "List installed packages"
+    template: "spack find | grep {{sai_package(0, 'name', 'spack')}}"
+
+  version:
+    description: "Show package version"
+    template: "spack find --format '{name}@{version}' {{sai_package(0, 'name', 'spack')}}"

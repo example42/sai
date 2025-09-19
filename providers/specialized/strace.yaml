@@ -1,0 +1,62 @@
+# Strace Provider Data - System call tracer
+version: "1.0"
+
+provider:
+  name: "strace"
+  display_name: "System Call Tracer"
+  description: "Trace system calls and signals"
+  type: "trace"
+  platforms: ["linux"]
+  capabilities: ["trace", "attach", "filter", "count", "time", "network", "files", "processes"]
+
+actions:
+  trace:
+    description: "Trace system calls"
+    template: "strace {{trace_options}} {{sai_command(0, 'path')}} 2>&1 | tee {{trace_output}}"
+    variables:
+      trace_options: "-f -t -e trace=all"
+      trace_output: "/tmp/strace-{{metadata.name}}.log"
+
+  attach:
+    description: "Attach to running process"
+    template: "strace {{attach_options}} -p $(pgrep -f {{metadata.name}}) 2>&1 | tee {{trace_output}}"
+    variables:
+      attach_options: "-f -t -e trace=all"
+      trace_output: "/tmp/strace-attach-{{metadata.name}}.log"
+
+  filter:
+    description: "Trace specific system calls"
+    template: "strace -e trace={{syscall_filter}} {{sai_command(0, 'path')}} 2>&1 | tee {{trace_output}}"
+    variables:
+      syscall_filter: "open,read,write,close"
+      trace_output: "/tmp/strace-filtered-{{metadata.name}}.log"
+
+  count:
+    description: "Count system calls"
+    template: "strace -c {{sai_command(0, 'path')}} 2>&1 | tee {{count_output}}"
+    variables:
+      count_output: "/tmp/strace-count-{{metadata.name}}.log"
+
+  time:
+    description: "Time system calls"
+    template: "strace -T -tt {{sai_command(0, 'path')}} 2>&1 | tee {{time_output}}"
+    variables:
+      time_output: "/tmp/strace-time-{{metadata.name}}.log"
+
+  network:
+    description: "Trace network-related calls"
+    template: "strace -e trace=network {{sai_command(0, 'path')}} 2>&1 | tee {{network_output}}"
+    variables:
+      network_output: "/tmp/strace-network-{{metadata.name}}.log"
+
+  files:
+    description: "Trace file operations"
+    template: "strace -e trace=file {{sai_command(0, 'path')}} 2>&1 | tee {{files_output}}"
+    variables:
+      files_output: "/tmp/strace-files-{{metadata.name}}.log"
+
+  processes:
+    description: "Trace process management"
+    template: "strace -e trace=process {{sai_command(0, 'path')}} 2>&1 | tee {{processes_output}}"
+    variables:
+      processes_output: "/tmp/strace-processes-{{metadata.name}}.log"

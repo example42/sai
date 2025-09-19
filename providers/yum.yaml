@@ -1,0 +1,83 @@
+# YUM Provider Data - Legacy RHEL/CentOS package manager
+version: "1.0"
+
+provider:
+  name: "yum"
+  display_name: "Yellowdog Updater Modified"
+  description: "Legacy package manager for RPM-based systems"
+  type: "package_manager"
+  platforms: ["rhel", "centos", "scientific"]
+  executable: "yum"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+
+actions:
+  install:
+    description: "Install packages via YUM"
+    template: "yum install -y {{sai_package('*', 'name', 'yum')}}"
+    timeout: 600
+    detection: "yum info {{sai_package(0, 'name', 'yum')}} >/dev/null 2>&1"
+    validation:
+      command: "rpm -qa | grep {{sai_package(0, 'name', 'yum')}}"
+      expected_exit_code: 0
+    rollback: "yum remove -y {{sai_package('*', 'name', 'yum')}}"
+
+  uninstall:
+    description: "Remove packages via YUM"
+    template: "yum remove -y {{sai_package('*', 'name', 'yum')}}"
+    detection: "rpm -qa | grep -q {{sai_package(0, 'name', 'yum')}}"
+    validation:
+      command: "! rpm -qa | grep {{sai_package(0, 'name', 'yum')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via YUM"
+    template: "yum update -y {{sai_package('*', 'name', 'yum')}}"
+    timeout: 600
+    detection: "rpm -qa | grep -q {{sai_package(0, 'name', 'yum')}}"
+
+  start:
+    description: "Start service via service command"
+    template: "service {{sai_service(0, 'service_name', 'yum')}} start"
+    validation:
+      command: "service {{sai_service(0, 'service_name', 'yum')}} status"
+      expected_exit_code: 0
+
+  stop:
+    description: "Stop service via service command"
+    template: "service {{sai_service(0, 'service_name', 'yum')}} stop"
+
+  restart:
+    description: "Restart service via service command"
+    template: "service {{sai_service(0, 'service_name', 'yum')}} restart"
+
+  enable:
+    description: "Enable service auto-start"
+    template: "chkconfig {{sai_service(0, 'service_name', 'yum')}} on"
+
+  disable:
+    description: "Disable service auto-start"
+    template: "chkconfig {{sai_service(0, 'service_name', 'yum')}} off"
+
+  status:
+    description: "Check service status"
+    template: "service {{sai_service(0, 'service_name', 'yum')}} status"
+
+  logs:
+    description: "Show service logs"
+    template: "tail -n 50 {{sai_file('log', 'path', 'yum')}}"
+
+  info:
+    description: "Show package information"
+    template: "yum info {{sai_package(0, 'name', 'yum')}}"
+
+  search:
+    description: "Search for packages"
+    template: "yum search {{sai_package(0, 'name', 'yum')}}"
+
+  list:
+    description: "List installed packages"
+    template: "rpm -qa | grep {{sai_package(0, 'name', 'yum')}}"
+
+  version:
+    description: "Show package version"
+    template: "rpm -q {{sai_package(0, 'name', 'yum')}} --queryformat '%{NAME} %{VERSION}-%{RELEASE}'"

@@ -1,0 +1,89 @@
+# Pacman Provider Data - Arch Linux package manager
+version: "1.0"
+
+provider:
+  name: "pacman"
+  display_name: "Pacman Package Manager"
+  description: "Package manager for Arch Linux and derivatives"
+  type: "package_manager"
+  platforms: ["arch", "manjaro", "endeavouros"]
+  executable: "pacman"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+
+actions:
+  install:
+    description: "Install packages via Pacman"
+    template: "pacman -S --noconfirm {{sai_package('*', 'name', 'pacman')}}"
+    timeout: 600
+    detection: "pacman -Si {{sai_package(0, 'name', 'pacman')}} >/dev/null 2>&1"
+    validation:
+      command: "pacman -Q | grep {{sai_package(0, 'name', 'pacman')}}"
+      expected_exit_code: 0
+    rollback: "pacman -R --noconfirm {{sai_package('*', 'name', 'pacman')}}"
+
+  uninstall:
+    description: "Remove packages via Pacman"
+    template: "pacman -R --noconfirm {{sai_package('*', 'name', 'pacman')}}"
+    detection: "pacman -Si {{sai_package(0, 'name', 'pacman')}} >/dev/null 2>&1"
+    validation:
+      command: "! pacman -Q | grep {{sai_package(0, 'name', 'pacman')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via Pacman"
+    steps:
+      - name: "sync-database"
+        command: "pacman -Sy"
+      - name: "upgrade-packages"
+        command: "pacman -S --noconfirm {{sai_package('*', 'name', 'pacman')}}"
+    timeout: 600
+
+  start:
+    description: "Start service via systemctl"
+    template: "systemctl start {{sai_service(0, 'service_name', 'pacman')}}"
+    validation:
+      command: "systemctl is-active {{sai_service(0, 'service_name', 'pacman')}}"
+      expected_output: "active"
+
+  stop:
+    description: "Stop service via systemctl"
+    template: "systemctl stop {{sai_service(0, 'service_name', 'pacman')}}"
+    validation:
+      command: "systemctl is-active {{sai_service(0, 'service_name', 'pacman')}}"
+      expected_output: "inactive"
+
+  restart:
+    description: "Restart service via systemctl"
+    template: "systemctl restart {{sai_service(0, 'service_name', 'pacman')}}"
+
+  enable:
+    description: "Enable service auto-start"
+    template: "systemctl enable {{sai_service(0, 'service_name', 'pacman')}}"
+
+  disable:
+    description: "Disable service auto-start"
+    template: "systemctl disable {{sai_service(0, 'service_name', 'pacman')}}"
+
+  status:
+    description: "Check service status"
+    template: "systemctl status {{sai_service(0, 'service_name', 'pacman')}}"
+
+  logs:
+    description: "Show service logs"
+    template: "journalctl -u {{sai_service(0, 'service_name', 'pacman')}} --no-pager -n 50"
+
+  info:
+    description: "Show package information"
+    template: "pacman -Si {{sai_package(0, 'name', 'pacman')}}"
+
+  search:
+    description: "Search for packages"
+    template: "pacman -Ss {{sai_package(0, 'name', 'pacman')}}"
+
+  list:
+    description: "List installed packages"
+    template: "pacman -Q | grep {{sai_package(0, 'name', 'pacman')}}"
+
+  version:
+    description: "Show package version"
+    template: "pacman -Q {{sai_package(0, 'name', 'pacman')}}"

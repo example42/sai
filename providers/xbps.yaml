@@ -1,0 +1,94 @@
+# XBPS Provider Data - Void Linux package manager
+version: "1.0"
+
+provider:
+  name: "xbps"
+  display_name: "X Binary Package System"
+  description: "Package manager for Void Linux"
+  type: "package_manager"
+  platforms: ["void"]
+  executable: "xbps-install"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+
+actions:
+  install:
+    description: "Install packages via XBPS"
+    steps:
+      - name: "sync-repos"
+        command: "xbps-install -S"
+      - name: "install-packages"
+        command: "xbps-install -y {{sai_package('*', 'name', 'xbps')}}"
+    timeout: 600
+    detection: "xbps-query -l | grep {{sai_package(0, 'name', 'xbps')}} >/dev/null 2>&1"
+    validation:
+      command: "xbps-query -l | grep {{sai_package(0, 'name', 'xbps')}}"
+      expected_exit_code: 0
+    rollback: "xbps-remove -y {{sai_package('*', 'name', 'xbps')}}"
+
+  uninstall:
+    description: "Remove packages via XBPS"
+    template: "xbps-remove -y {{sai_package('*', 'name', 'xbps')}}"
+    detection: "xbps-query -l | grep {{sai_package(0, 'name', 'xbps')}} >/dev/null 2>&1"
+    validation:
+      command: "! xbps-query -l | grep {{sai_package(0, 'name', 'xbps')}}"
+      expected_exit_code: 0
+
+  upgrade:
+    description: "Upgrade packages via XBPS"
+    steps:
+      - name: "sync-repos"
+        command: "xbps-install -S"
+      - name: "upgrade-packages"
+        command: "xbps-install -u {{sai_package('*', 'name', 'xbps')}}"
+    timeout: 600
+    detection: "xbps-query -l | grep {{sai_package(0, 'name', 'xbps')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start service via sv"
+    template: "sv start {{sai_service(0, 'service_name', 'xbps')}}"
+    validation:
+      command: "sv status {{sai_service(0, 'service_name', 'xbps')}}"
+      expected_output: "run"
+
+  stop:
+    description: "Stop service via sv"
+    template: "sv stop {{sai_service(0, 'service_name', 'xbps')}}"
+    validation:
+      command: "sv status {{sai_service(0, 'service_name', 'xbps')}}"
+      expected_output: "down"
+
+  restart:
+    description: "Restart service via sv"
+    template: "sv restart {{sai_service(0, 'service_name', 'xbps')}}"
+
+  enable:
+    description: "Enable service auto-start"
+    template: "ln -sf /etc/sv/{{sai_service(0, 'service_name', 'xbps')}} /var/service/"
+
+  disable:
+    description: "Disable service auto-start"
+    template: "rm -f /var/service/{{sai_service(0, 'service_name', 'xbps')}}"
+
+  status:
+    description: "Check service status"
+    template: "sv status {{sai_service(0, 'service_name', 'xbps')}}"
+
+  logs:
+    description: "Show service logs"
+    template: "svlogtail {{sai_service(0, 'service_name', 'xbps')}}"
+
+  info:
+    description: "Show package information"
+    template: "xbps-query -R {{sai_package(0, 'name', 'xbps')}}"
+
+  search:
+    description: "Search for packages"
+    template: "xbps-query -Rs {{sai_package(0, 'name', 'xbps')}}"
+
+  list:
+    description: "List installed packages"
+    template: "xbps-query -l | grep {{sai_package(0, 'name', 'xbps')}}"
+
+  version:
+    description: "Show package version"
+    template: "xbps-query {{sai_package(0, 'name', 'xbps')}} | grep pkgver"

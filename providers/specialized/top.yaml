@@ -1,0 +1,37 @@
+# TOP Provider Data - Real-time process monitoring
+version: "1.0"
+
+provider:
+  name: "top"
+  display_name: "Top Process Monitor"
+  description: "Real-time process monitoring using top command"
+  type: "monitor"
+  platforms: ["linux", "macos", "windows"]
+  executable: "top"  # Main executable for availability detection
+  capabilities: ["status", "list", "info", "logs", "stop"]
+
+actions:
+  status:
+    description: "Monitor processes in real-time"
+    template: "top -p $(pgrep -f {{metadata.name}} | tr '\\n' ',')"
+
+  list:
+    description: "List top processes"
+    template: "top -b -n1 | grep {{metadata.name}}"
+
+  info:
+    description: "Show process information from top"
+    template: "top -b -n1 -p $(pgrep -f {{metadata.name}})"
+
+  logs:
+    description: "Monitor process continuously"
+    template: "top -d {{monitor_interval}} -p $(pgrep -f {{metadata.name}})"
+    variables:
+      monitor_interval: "2"
+
+  stop:
+    description: "Kill process from top interface"
+    template: "kill -TERM $(pgrep -f {{metadata.name}})"
+    validation:
+      command: "! pgrep -f {{metadata.name}}"
+      expected_exit_code: 0

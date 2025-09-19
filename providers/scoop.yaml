@@ -1,0 +1,73 @@
+# Scoop Provider Data - Windows package manager
+version: "1.0"
+
+provider:
+  name: "scoop"
+  display_name: "Scoop"
+  description: "A command-line installer for Windows"
+  type: "package_manager"
+  platforms: ["windows"]
+  executable: "scoop"  # Main executable for availability detection
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "status"]
+
+actions:
+  install:
+    description: "Install packages via Scoop"
+    template: "scoop install {{sai_package('*', 'name', 'scoop')}}"
+    timeout: 600
+    detection: "scoop info {{sai_package(0, 'name', 'scoop')}} >/dev/null 2>&1"
+    validation:
+      command: "scoop list | findstr {{sai_package(0, 'name', 'scoop')}}"
+      expected_exit_code: 0
+    rollback: "scoop uninstall {{sai_package('*', 'name', 'scoop')}}"
+
+  uninstall:
+    description: "Remove packages via Scoop"
+    template: "scoop uninstall {{sai_package('*', 'name', 'scoop')}}"
+    detection: "scoop info {{sai_package(0, 'name', 'scoop')}} >/dev/null 2>&1"
+    validation:
+      command: "scoop list | findstr {{sai_package(0, 'name', 'scoop')}} || exit 1"
+      expected_exit_code: 1
+
+  upgrade:
+    description: "Upgrade packages via Scoop"
+    template: "scoop update {{sai_package('*', 'name', 'scoop')}}"
+    timeout: 600
+    detection: "scoop info {{sai_package(0, 'name', 'scoop')}} >/dev/null 2>&1"
+
+  start:
+    description: "Start application"
+    template: "{{sai_command(0, 'path', 'scoop')}}"
+
+  stop:
+    description: "Stop application"
+    template: "taskkill /F /IM {{sai_package(0, 'name', 'scoop')}}.exe"
+
+  restart:
+    description: "Restart application"
+    steps:
+      - name: "stop-app"
+        command: "taskkill /F /IM {{sai_package(0, 'name', 'scoop')}}.exe"
+        ignore_failure: true
+      - name: "start-app"
+        command: "{{sai_command(0, 'path', 'scoop')}}"
+
+  status:
+    description: "Check application status"
+    template: "tasklist | findstr {{sai_package(0, 'name', 'scoop')}}.exe"
+
+  info:
+    description: "Show package information"
+    template: "scoop info {{sai_package(0, 'name', 'scoop')}}"
+
+  search:
+    description: "Search for packages"
+    template: "scoop search {{sai_package(0, 'name', 'scoop')}}"
+
+  list:
+    description: "List installed packages"
+    template: "scoop list | findstr {{sai_package(0, 'name', 'scoop')}}"
+
+  version:
+    description: "Show package version"
+    template: "scoop list {{sai_package(0, 'name', 'scoop')}}"
