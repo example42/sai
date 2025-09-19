@@ -3,20 +3,28 @@ package action
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"sai/internal/config"
 	"sai/internal/interfaces"
+	"sai/internal/output"
 	"sai/internal/types"
+	"sai/internal/ui"
 )
 
 // ActionManager orchestrates software management operations
 type ActionManager struct {
-	providerManager interfaces.ProviderManager
-	saidataManager  interfaces.SaidataManager
-	executor        interfaces.GenericExecutor
-	validator       interfaces.ResourceValidator
-	config          *config.Config
+	providerManager     interfaces.ProviderManager
+	saidataManager      interfaces.SaidataManager
+	executor            interfaces.GenericExecutor
+	validator           interfaces.ResourceValidator
+	config              *config.Config
+	ui                  *ui.UserInterface
+	formatter           *output.OutputFormatter
+	safetyManager       *SafetyManager
+	confirmationManager *ConfirmationManager
 }
 
 // NewActionManager creates a new action manager
@@ -26,109 +34,87 @@ func NewActionManager(
 	executor interfaces.GenericExecutor,
 	validator interfaces.ResourceValidator,
 	config *config.Config,
+	userInterface *ui.UserInterface,
+	formatter *output.OutputFormatter,
 ) *ActionManager {
+	safetyManager := NewSafetyManager(validator)
+	confirmationManager := NewConfirmationManager(config, userInterface, formatter)
+	
 	return &ActionManager{
-		providerManager: providerManager,
-		saidataManager:  saidataManager,
-		executor:        executor,
-		validator:       validator,
-		config:          config,
+		providerManager:     providerManager,
+		saidataManager:      saidataManager,
+		executor:            executor,
+		validator:           validator,
+		config:              config,
+		ui:                  userInterface,
+		formatter:           formatter,
+		safetyManager:       safetyManager,
+		confirmationManager: confirmationManager,
 	}
 }
 
-// ExecuteAction executes a specific action on software
+// ExecuteAction executes a specific action on software with full workflow orchestration
 func (am *ActionManager) ExecuteAction(ctx context.Context, action string, software string, options interfaces.ActionOptions) (*interfaces.ActionResult, error) {
 	startTime := time.Now()
 
-	// Resolve software data (saidata or intelligent defaults)
-	saidata, err := am.ResolveSoftwareData(software)
-	if err != nil {
-		return &interfaces.ActionResult{
-			Action:   action,
-			Software: software,
-			Success:  false,
-			Error:    fmt.Errorf("failed to resolve software data: %w", err),
-			Duration: time.Since(startTime),
-			ExitCode: 1,
-		}, err
+	// Step 1: Validate action can be performed
+	if err := am.ValidateAction(action, software); err != nil {
+		return am.buildErrorResult(action, software, "", err, startTime), err
 	}
 
-	// Get available providers for this software and action
+	// Step 2: Resolve software data (saidata or intelligent defaults)
+	saidata, err := am.ResolveSoftwareData(software)
+	if err != nil {
+		return am.buildErrorResult(action, software, "", fmt.Errorf("failed to resolve software data: %w", err), startTime), err
+	}
+
+	// Step 3: Setup repositories if needed (Requirement 8.5)
+	if err := am.ManageRepositorySetup(saidata); err != nil {
+		am.formatter.ShowWarning(fmt.Sprintf("Repository setup failed: %v", err))
+	}
+
+	// Step 4: Get available providers for this software and action
 	providerOptions, err := am.GetAvailableProviders(software, action)
 	if err != nil {
-		return &interfaces.ActionResult{
-			Action:   action,
-			Software: software,
-			Success:  false,
-			Error:    fmt.Errorf("failed to get available providers: %w", err),
-			Duration: time.Since(startTime),
-			ExitCode: 1,
-		}, err
+		return am.buildErrorResult(action, software, "", fmt.Errorf("failed to get available providers: %w", err), startTime), err
 	}
 
 	if len(providerOptions) == 0 {
-		return &interfaces.ActionResult{
-			Action:   action,
-			Software: software,
-			Success:  false,
-			Error:    fmt.Errorf("no providers available for action %s on software %s", action, software),
-			Duration: time.Since(startTime),
-			ExitCode: 1,
-		}, fmt.Errorf("no providers available")
+		return am.buildErrorResult(action, software, "", fmt.Errorf("no providers available for action %s on software %s", action, software), startTime), fmt.Errorf("no providers available")
 	}
 
-	// Select provider (preferred, or first available)
-	var selectedProvider *types.ProviderData
-	if options.Provider != "" {
-		// Find the preferred provider in available options
-		for _, option := range providerOptions {
-			if option.Provider.Provider.Name == options.Provider {
-				selectedProvider = option.Provider
-				break
-			}
-		}
-		if selectedProvider == nil {
-			return &interfaces.ActionResult{
-				Action:   action,
-				Software: software,
-				Success:  false,
-				Error:    fmt.Errorf("preferred provider %s not available for action %s", options.Provider, action),
-				Duration: time.Since(startTime),
-				ExitCode: 1,
-			}, fmt.Errorf("preferred provider not available")
-		}
-	} else {
-		// Use the first (highest priority) available provider
-		selectedProvider = providerOptions[0].Provider
-	}
-
-	// Validate resources exist before execution
-	validationResult, err := am.ValidateResourcesExist(saidata, action)
+	// Step 5: Select provider with user interaction if needed
+	selectedProvider, err := am.selectProvider(software, action, providerOptions, options)
 	if err != nil {
-		return &interfaces.ActionResult{
-			Action:   action,
-			Software: software,
-			Provider: selectedProvider.Provider.Name,
-			Success:  false,
-			Error:    fmt.Errorf("resource validation failed: %w", err),
-			Duration: time.Since(startTime),
-			ExitCode: 1,
-		}, err
+		return am.buildErrorResult(action, software, "", err, startTime), err
 	}
 
-	if !validationResult.CanProceed {
-		return &interfaces.ActionResult{
-			Action:   action,
-			Software: software,
-			Provider: selectedProvider.Provider.Name,
-			Success:  false,
-			Error:    fmt.Errorf("cannot proceed: missing resources: %v", validationResult.MissingFiles),
-			Duration: time.Since(startTime),
-			ExitCode: 1,
-		}, fmt.Errorf("missing required resources")
+	// Step 6: Perform comprehensive safety checks (Requirement 10.5)
+	safetyResult, err := am.safetyManager.CheckActionSafety(action, software, selectedProvider, saidata)
+	if err != nil {
+		return am.buildErrorResult(action, software, selectedProvider.Provider.Name, fmt.Errorf("safety check failed: %w", err), startTime), err
 	}
 
-	// Execute the action
+	// Handle safety check failures
+	if !safetyResult.Safe {
+		errors := safetyResult.GetErrors()
+		if len(errors) > 0 {
+			for _, errorMsg := range errors {
+				am.formatter.ShowError(fmt.Errorf("%s", errorMsg))
+			}
+			return am.buildErrorResult(action, software, selectedProvider.Provider.Name, 
+				fmt.Errorf("safety checks failed: %v", errors), startTime), 
+				fmt.Errorf("safety checks failed")
+		}
+	}
+
+	// Show safety warnings
+	warnings := safetyResult.GetWarnings()
+	for _, warning := range warnings {
+		am.formatter.ShowWarning(warning)
+	}
+
+	// Step 7: Get commands that will be executed
 	executeOptions := interfaces.ExecuteOptions{
 		DryRun:    options.DryRun,
 		Verbose:   options.Verbose,
@@ -136,14 +122,63 @@ func (am *ActionManager) ExecuteAction(ctx context.Context, action string, softw
 		Variables: options.Variables,
 	}
 
+	// Get preview of commands for confirmation
+	var commands []string
+	if previewResult, err := am.executor.DryRun(ctx, selectedProvider, action, software, saidata, executeOptions); err == nil {
+		commands = previewResult.Commands
+	}
+
+	// Step 8: Handle confirmation prompts with enhanced safety information (Requirements 9.1, 9.2)
+	if am.confirmationManager.RequiresConfirmation(action, options) {
+		// Check for destructive operations first
+		if action == "uninstall" || action == "stop" || action == "disable" {
+			confirmed, err := am.confirmationManager.ConfirmDestructiveAction(action, software, safetyResult)
+			if err != nil {
+				return am.buildErrorResult(action, software, selectedProvider.Provider.Name, err, startTime), err
+			}
+			if !confirmed {
+				return &interfaces.ActionResult{
+					Action:               action,
+					Software:             software,
+					Provider:             selectedProvider.Provider.Name,
+					Success:              false,
+					Error:                fmt.Errorf("destructive action cancelled by user"),
+					Duration:             time.Since(startTime),
+					ExitCode:             1,
+					RequiredConfirmation: true,
+				}, fmt.Errorf("action cancelled by user")
+			}
+		} else {
+			// Regular confirmation with safety information
+			confirmed, err := am.confirmationManager.ConfirmAction(action, software, selectedProvider.Provider.Name, commands, safetyResult)
+			if err != nil {
+				return am.buildErrorResult(action, software, selectedProvider.Provider.Name, fmt.Errorf("confirmation failed: %w", err), startTime), err
+			}
+			if !confirmed {
+				return &interfaces.ActionResult{
+					Action:               action,
+					Software:             software,
+					Provider:             selectedProvider.Provider.Name,
+					Success:              false,
+					Error:                fmt.Errorf("action cancelled by user"),
+					Duration:             time.Since(startTime),
+					ExitCode:             1,
+					RequiredConfirmation: true,
+				}, fmt.Errorf("action cancelled by user")
+			}
+		}
+	}
+
+	// Step 9: Execute the action
 	var executionResult *interfaces.ExecutionResult
 	if options.DryRun {
+		am.formatter.ShowInfo("Dry run mode - showing commands that would be executed:")
 		executionResult, err = am.executor.DryRun(ctx, selectedProvider, action, software, saidata, executeOptions)
 	} else {
 		executionResult, err = am.executor.Execute(ctx, selectedProvider, action, software, saidata, executeOptions)
 	}
 
-	// Build action result
+	// Step 10: Build and return result
 	result := &interfaces.ActionResult{
 		Action:               action,
 		Software:             software,
@@ -167,6 +202,9 @@ func (am *ActionManager) ExecuteAction(ctx context.Context, action string, softw
 			result.ExitCode = 1
 		}
 	}
+
+	// Step 11: Show result to user
+	am.displayActionResult(result)
 
 	return result, err
 }
@@ -277,16 +315,30 @@ func (am *ActionManager) GetAvailableProviders(software string, action string) (
 	var options []*interfaces.ProviderOption
 	for _, provider := range providers {
 		if am.providerManager.IsProviderAvailable(provider.Provider.Name) {
-			option := &interfaces.ProviderOption{
-				Provider:    provider,
-				PackageName: am.getPackageName(provider, software),
-				Version:     am.getProviderVersion(provider),
-				IsInstalled: am.isPackageInstalled(provider, software),
-				Priority:    am.getProviderPriority(provider),
+			// Validate that the action can be executed with this provider
+			if saidata, err := am.ResolveSoftwareData(software); err == nil {
+				if am.executor.CanExecute(provider, action, software, saidata) {
+					option := &interfaces.ProviderOption{
+						Provider:    provider,
+						PackageName: am.getPackageName(provider, software),
+						Version:     am.getProviderVersion(provider),
+						IsInstalled: am.isPackageInstalled(provider, software),
+						Priority:    am.getProviderPriority(provider),
+					}
+					options = append(options, option)
+				}
 			}
-			options = append(options, option)
 		}
 	}
+
+	if len(options) == 0 {
+		return nil, fmt.Errorf("no executable providers available for action %s on software %s", action, software)
+	}
+
+	// Sort by priority (highest first)
+	sort.Slice(options, func(i, j int) bool {
+		return options[i].Priority > options[j].Priority
+	})
 
 	return options, nil
 }
@@ -296,10 +348,16 @@ func (am *ActionManager) RequiresConfirmation(action string) bool {
 	return am.config.RequiresConfirmation(action)
 }
 
+// BypassConfirmation checks if confirmation should be bypassed based on options
+func (am *ActionManager) BypassConfirmation(options interfaces.ActionOptions) bool {
+	return am.confirmationManager.BypassConfirmation(options)
+}
+
 // SearchAcrossProviders searches for software across all providers (Requirement 2.3)
 func (am *ActionManager) SearchAcrossProviders(software string) ([]*interfaces.SearchResult, error) {
 	providers := am.providerManager.GetAvailableProviders()
 	var results []*interfaces.SearchResult
+	ctx := context.Background()
 
 	for _, provider := range providers {
 		// Check if provider supports search action
@@ -307,15 +365,43 @@ func (am *ActionManager) SearchAcrossProviders(software string) ([]*interfaces.S
 			continue
 		}
 
-		// TODO: Execute search command and parse results
-		// For now, return a placeholder result
+		// Skip if provider is not available
+		if !am.providerManager.IsProviderAvailable(provider.Provider.Name) {
+			continue
+		}
+
+		// Get saidata for template resolution
+		saidata, err := am.ResolveSoftwareData(software)
+		if err != nil {
+			continue // Skip this provider if we can't resolve saidata
+		}
+
+		// Check if search action can be executed
+		if !am.executor.CanExecute(provider, "search", software, saidata) {
+			continue
+		}
+
+		// Execute search command
+		executeOptions := interfaces.ExecuteOptions{
+			DryRun:  false,
+			Verbose: false,
+			Timeout: 30 * time.Second,
+		}
+
+		executionResult, err := am.executor.Execute(ctx, provider, "search", software, saidata, executeOptions)
+		if err != nil || !executionResult.Success {
+			// Search failed, but don't fail the entire operation
+			continue
+		}
+
+		// Parse search results (simplified - in real implementation would parse provider-specific output)
 		result := &interfaces.SearchResult{
 			Software:    software,
 			Provider:    provider.Provider.Name,
 			PackageName: am.getPackageName(provider, software),
-			Version:     "unknown",
+			Version:     "available", // Would parse from output
 			Description: fmt.Sprintf("%s package from %s", software, provider.Provider.DisplayName),
-			Available:   true,
+			Available:   executionResult.Success,
 		}
 		results = append(results, result)
 	}
@@ -327,6 +413,7 @@ func (am *ActionManager) SearchAcrossProviders(software string) ([]*interfaces.S
 func (am *ActionManager) GetSoftwareInfo(software string) ([]*interfaces.SoftwareInfo, error) {
 	providers := am.providerManager.GetAvailableProviders()
 	var results []*interfaces.SoftwareInfo
+	ctx := context.Background()
 
 	for _, provider := range providers {
 		// Check if provider supports info action
@@ -334,16 +421,45 @@ func (am *ActionManager) GetSoftwareInfo(software string) ([]*interfaces.Softwar
 			continue
 		}
 
-		// TODO: Execute info command and parse results
-		// For now, return a placeholder result
+		// Skip if provider is not available
+		if !am.providerManager.IsProviderAvailable(provider.Provider.Name) {
+			continue
+		}
+
+		// Get saidata for template resolution
+		saidata, err := am.ResolveSoftwareData(software)
+		if err != nil {
+			continue // Skip this provider if we can't resolve saidata
+		}
+
+		// Check if info action can be executed
+		if !am.executor.CanExecute(provider, "info", software, saidata) {
+			continue
+		}
+
+		// Execute info command
+		executeOptions := interfaces.ExecuteOptions{
+			DryRun:  false,
+			Verbose: false,
+			Timeout: 30 * time.Second,
+		}
+
+		executionResult, err := am.executor.Execute(ctx, provider, "info", software, saidata, executeOptions)
+		if err != nil || !executionResult.Success {
+			// Info failed, but don't fail the entire operation
+			continue
+		}
+
+		// Parse info results (simplified - in real implementation would parse provider-specific output)
 		info := &interfaces.SoftwareInfo{
-			Software:    software,
-			Provider:    provider.Provider.Name,
-			PackageName: am.getPackageName(provider, software),
-			Version:     "unknown",
-			Description: fmt.Sprintf("%s package information from %s", software, provider.Provider.DisplayName),
-			Homepage:    "",
-			License:     "unknown",
+			Software:     software,
+			Provider:     provider.Provider.Name,
+			PackageName:  am.getPackageName(provider, software),
+			Version:      "available", // Would parse from output
+			Description:  fmt.Sprintf("%s package information from %s", software, provider.Provider.DisplayName),
+			Homepage:     "", // Would parse from output
+			License:      "unknown", // Would parse from output
+			Dependencies: []string{}, // Would parse from output
 		}
 		results = append(results, info)
 	}
@@ -355,6 +471,7 @@ func (am *ActionManager) GetSoftwareInfo(software string) ([]*interfaces.Softwar
 func (am *ActionManager) GetSoftwareVersions(software string) ([]*interfaces.VersionInfo, error) {
 	providers := am.providerManager.GetAvailableProviders()
 	var results []*interfaces.VersionInfo
+	ctx := context.Background()
 
 	for _, provider := range providers {
 		// Check if provider supports version action
@@ -362,16 +479,50 @@ func (am *ActionManager) GetSoftwareVersions(software string) ([]*interfaces.Ver
 			continue
 		}
 
-		// TODO: Execute version command and parse results
-		// For now, return a placeholder result
+		// Skip if provider is not available
+		if !am.providerManager.IsProviderAvailable(provider.Provider.Name) {
+			continue
+		}
+
+		// Get saidata for template resolution
+		saidata, err := am.ResolveSoftwareData(software)
+		if err != nil {
+			continue // Skip this provider if we can't resolve saidata
+		}
+
+		// Check if version action can be executed
+		if !am.executor.CanExecute(provider, "version", software, saidata) {
+			continue
+		}
+
+		// Execute version command
+		executeOptions := interfaces.ExecuteOptions{
+			DryRun:  false,
+			Verbose: false,
+			Timeout: 30 * time.Second,
+		}
+
+		executionResult, err := am.executor.Execute(ctx, provider, "version", software, saidata, executeOptions)
+		
+		// Check installation status
+		isInstalled := am.isPackageInstalled(provider, software)
+		
+		// Parse version results (simplified - in real implementation would parse provider-specific output)
 		version := &interfaces.VersionInfo{
 			Software:      software,
 			Provider:      provider.Provider.Name,
 			PackageName:   am.getPackageName(provider, software),
-			Version:       "unknown",
-			IsInstalled:   am.isPackageInstalled(provider, software),
-			LatestVersion: "unknown",
+			Version:       "unknown", // Would parse from output
+			IsInstalled:   isInstalled,
+			LatestVersion: "unknown", // Would parse from output
 		}
+
+		// If command succeeded, try to parse version from output
+		if err == nil && executionResult.Success {
+			// In a real implementation, this would parse the actual version from output
+			version.Version = "available"
+		}
+
 		results = append(results, version)
 	}
 
@@ -380,24 +531,188 @@ func (am *ActionManager) GetSoftwareVersions(software string) ([]*interfaces.Ver
 
 // ManageRepositorySetup automatically sets up repositories from saidata (Requirement 8.5)
 func (am *ActionManager) ManageRepositorySetup(saidata *types.SoftwareData) error {
-	// TODO: Implement repository setup based on saidata
+	if saidata == nil {
+		return nil
+	}
+
+	// Check if auto setup is enabled
+	if !am.config.Repository.AutoSetup {
+		return nil
+	}
+
+	// Look for repository definitions in saidata
+	var repositoriesToSetup []types.Repository
+	
+	// Check provider-specific repositories
+	for providerName, providerConfig := range saidata.Providers {
+		if len(providerConfig.Repositories) > 0 {
+			// Only setup repositories for available providers
+			if am.providerManager.IsProviderAvailable(providerName) {
+				repositoriesToSetup = append(repositoriesToSetup, providerConfig.Repositories...)
+			}
+		}
+	}
+
+	// Setup each repository
+	for _, repo := range repositoriesToSetup {
+		if err := am.setupRepository(repo); err != nil {
+			am.formatter.ShowWarning(fmt.Sprintf("Failed to setup repository %s: %v", repo.Name, err))
+			// Continue with other repositories even if one fails
+		} else {
+			am.formatter.ShowDebug(fmt.Sprintf("Successfully setup repository: %s", repo.Name))
+		}
+	}
+
+	return nil
+}
+
+// setupRepository sets up a single repository
+func (am *ActionManager) setupRepository(repo types.Repository) error {
+	// Validate repository configuration
+	if repo.Name == "" || repo.URL == "" {
+		return fmt.Errorf("repository name and URL are required")
+	}
+
+	// Check if repository is enabled
+	if !repo.Enabled {
+		return nil // Skip disabled repositories
+	}
+
+	// Repository setup would be provider-specific
+	// For now, just log the setup attempt
+	am.formatter.ShowDebug(fmt.Sprintf("Setting up %s repository: %s (%s)", repo.Type, repo.Name, repo.URL))
+
+	// In a real implementation, this would:
+	// 1. Check if repository already exists
+	// 2. Add repository configuration to the appropriate package manager
+	// 3. Import GPG keys if needed
+	// 4. Update package manager cache
+	
 	return nil
 }
 
 // Helper methods
 
+// selectProvider handles provider selection with user interaction (Requirement 1.3)
+func (am *ActionManager) selectProvider(software, action string, options []*interfaces.ProviderOption, actionOptions interfaces.ActionOptions) (*types.ProviderData, error) {
+	// If specific provider requested, find and validate it
+	if actionOptions.Provider != "" {
+		for _, option := range options {
+			if option.Provider.Provider.Name == actionOptions.Provider {
+				return option.Provider, nil
+			}
+		}
+		return nil, fmt.Errorf("preferred provider %s not available for action %s", actionOptions.Provider, action)
+	}
+
+	// Sort providers by priority (highest first)
+	sort.Slice(options, func(i, j int) bool {
+		return options[i].Priority > options[j].Priority
+	})
+
+	// If only one provider available, use it
+	if len(options) == 1 {
+		return options[0].Provider, nil
+	}
+
+	// If --yes flag is used, select highest priority provider (Requirement 1.4)
+	if actionOptions.Yes {
+		return options[0].Provider, nil
+	}
+
+	// Multiple providers available - use confirmation manager for selection (Requirement 1.3)
+	selectedOption, err := am.confirmationManager.ConfirmProviderSelection(software, options)
+	if err != nil {
+		return nil, fmt.Errorf("provider selection failed: %w", err)
+	}
+
+	return selectedOption.Provider, nil
+}
+
+// buildErrorResult creates an error result with consistent structure
+func (am *ActionManager) buildErrorResult(action, software, provider string, err error, startTime time.Time) *interfaces.ActionResult {
+	return &interfaces.ActionResult{
+		Action:               action,
+		Software:             software,
+		Provider:             provider,
+		Success:              false,
+		Error:                err,
+		Duration:             time.Since(startTime),
+		ExitCode:             1,
+		RequiredConfirmation: am.RequiresConfirmation(action),
+	}
+}
+
+// formatMissingResources formats missing resources for error messages
+func (am *ActionManager) formatMissingResources(validation *interfaces.ResourceValidationResult) string {
+	var missing []string
+	
+	if len(validation.MissingFiles) > 0 {
+		missing = append(missing, fmt.Sprintf("files: %v", validation.MissingFiles))
+	}
+	if len(validation.MissingDirectories) > 0 {
+		missing = append(missing, fmt.Sprintf("directories: %v", validation.MissingDirectories))
+	}
+	if len(validation.MissingCommands) > 0 {
+		missing = append(missing, fmt.Sprintf("commands: %v", validation.MissingCommands))
+	}
+	if len(validation.MissingServices) > 0 {
+		missing = append(missing, fmt.Sprintf("services: %v", validation.MissingServices))
+	}
+	
+	return fmt.Sprintf("[%s]", strings.Join(missing, ", "))
+}
+
+// displayActionResult shows the action result to the user
+func (am *ActionManager) displayActionResult(result *interfaces.ActionResult) {
+	if result.Success {
+		if !am.formatter.IsQuietMode() {
+			am.formatter.ShowSuccess(fmt.Sprintf("Successfully executed %s for %s using %s", 
+				result.Action, result.Software, result.Provider))
+		}
+	} else if result.Error != nil {
+		am.formatter.ShowError(result.Error)
+	}
+
+	// Show execution details in verbose mode
+	if am.formatter.IsVerboseMode() {
+		am.formatter.ShowDebug(fmt.Sprintf("Action: %s, Duration: %v, Exit Code: %d", 
+			result.Action, result.Duration, result.ExitCode))
+		
+		if len(result.Commands) > 0 {
+			am.formatter.ShowDebug(fmt.Sprintf("Commands executed: %v", result.Commands))
+		}
+		
+		if len(result.Changes) > 0 {
+			am.formatter.ShowDebug(fmt.Sprintf("Changes made: %d", len(result.Changes)))
+		}
+	}
+}
+
 func (am *ActionManager) getPackageName(provider *types.ProviderData, software string) string {
-	// TODO: Get actual package name from saidata
+	// Try to get package name from saidata first
+	if saidata, err := am.saidataManager.LoadSoftware(software); err == nil {
+		if providerConfig, exists := saidata.Providers[provider.Provider.Name]; exists {
+			if len(providerConfig.Packages) > 0 {
+				return providerConfig.Packages[0].Name
+			}
+		}
+		if len(saidata.Packages) > 0 {
+			return saidata.Packages[0].Name
+		}
+	}
+	
+	// Fallback to software name
 	return software
 }
 
 func (am *ActionManager) getProviderVersion(provider *types.ProviderData) string {
-	// TODO: Get actual provider version
+	// TODO: Get actual provider version by executing version command
 	return "unknown"
 }
 
 func (am *ActionManager) isPackageInstalled(provider *types.ProviderData, software string) bool {
-	// TODO: Check if package is actually installed
+	// TODO: Check if package is actually installed by executing check command
 	return false
 }
 

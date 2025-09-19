@@ -189,6 +189,7 @@ type Repository struct {
 	Maintainer  string      `yaml:"maintainer,omitempty" json:"maintainer,omitempty"`
 	Priority    int         `yaml:"priority,omitempty" json:"priority,omitempty"`
 	Recommended bool        `yaml:"recommended,omitempty" json:"recommended,omitempty"`
+	Enabled     bool        `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 	Notes       string      `yaml:"notes,omitempty" json:"notes,omitempty"`
 	Packages    []Package   `yaml:"packages,omitempty" json:"packages,omitempty"`
 	Services    []Service   `yaml:"services,omitempty" json:"services,omitempty"`

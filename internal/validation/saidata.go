@@ -293,6 +293,29 @@ func (r *ResourceValidator) ValidateResources(saidata *types.SoftwareData) (*int
 		}
 	}
 	
+	// Determine if we can proceed despite missing resources
+	result.CanProceed = r.canProceedWithMissingResources(result)
+	
+	// Add warnings for missing optional resources
+	if len(result.MissingFiles) > 0 {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("Some configuration files are missing: %v", result.MissingFiles))
+	}
+	if len(result.MissingServices) > 0 {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("Some services are not installed: %v", result.MissingServices))
+	}
+	
 	return result, nil
 }
+
+// canProceedWithMissingResources determines if execution can proceed despite missing resources
+func (r *ResourceValidator) canProceedWithMissingResources(result *interfaces.ResourceValidationResult) bool {
+	// For now, allow proceeding if only files or services are missing
+	// Block execution only if critical commands are missing
+	return len(result.MissingCommands) == 0
+}
+
+
+
+// Ensure ResourceValidator implements the interface
+var _ interfaces.ResourceValidator = (*ResourceValidator)(nil)
 
