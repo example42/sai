@@ -9,19 +9,22 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
+	"sai/internal/errors"
 )
 
 // Config represents the application configuration
 type Config struct {
-	SaidataRepository string            `yaml:"saidata_repository"`
-	DefaultProvider   string            `yaml:"default_provider"`
-	ProviderPriority  map[string]int    `yaml:"provider_priority"`
-	Timeout           time.Duration     `yaml:"timeout"`
-	CacheDir          string            `yaml:"cache_dir"`
-	LogLevel          string            `yaml:"log_level"`
-	Confirmations     ConfirmationConfig `yaml:"confirmations"`
-	Output            OutputConfig      `yaml:"output"`
-	Repository        RepositoryConfig  `yaml:"repository"`
+	SaidataRepository string                        `yaml:"saidata_repository"`
+	DefaultProvider   string                        `yaml:"default_provider"`
+	ProviderPriority  map[string]int                `yaml:"provider_priority"`
+	Timeout           time.Duration                 `yaml:"timeout"`
+	CacheDir          string                        `yaml:"cache_dir"`
+	LogLevel          string                        `yaml:"log_level"`
+	Confirmations     ConfirmationConfig            `yaml:"confirmations"`
+	Output            OutputConfig                  `yaml:"output"`
+	Repository        RepositoryConfig              `yaml:"repository"`
+	Recovery          *errors.RecoveryConfig        `yaml:"recovery,omitempty"`
+	CircuitBreaker    *errors.CircuitBreakerConfig  `yaml:"circuit_breaker,omitempty"`
 }
 
 // RepositoryConfig handles Git-based management with zip fallback (Requirement 8.4)
@@ -98,6 +101,8 @@ func getDefaultConfig() *Config {
 		Timeout:           30 * time.Second,
 		CacheDir:          cacheDir,
 		LogLevel:          "info",
+		Recovery:          errors.DefaultRecoveryConfig(),
+		CircuitBreaker:    errors.DefaultCircuitBreakerConfig(),
 		Confirmations: ConfirmationConfig{
 			Install:       true,  // Require confirmation for system-changing operations
 			Uninstall:     true,  // Require confirmation for system-changing operations

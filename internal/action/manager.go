@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"sai/internal/config"
+	"sai/internal/errors"
 	"sai/internal/interfaces"
 	"sai/internal/output"
 	"sai/internal/types"
@@ -16,15 +17,18 @@ import (
 
 // ActionManager orchestrates software management operations
 type ActionManager struct {
-	providerManager     interfaces.ProviderManager
-	saidataManager      interfaces.SaidataManager
-	executor            interfaces.GenericExecutor
-	validator           interfaces.ResourceValidator
-	config              *config.Config
-	ui                  *ui.UserInterface
-	formatter           *output.OutputFormatter
-	safetyManager       *SafetyManager
-	confirmationManager *ConfirmationManager
+	providerManager       interfaces.ProviderManager
+	saidataManager        interfaces.SaidataManager
+	executor              interfaces.GenericExecutor
+	validator             interfaces.ResourceValidator
+	config                *config.Config
+	ui                    *ui.UserInterface
+	formatter             *output.OutputFormatter
+	safetyManager         *SafetyManager
+	confirmationManager   *ConfirmationManager
+	recoveryManager       *errors.RecoveryManager
+	circuitBreakerManager *errors.CircuitBreakerManager
+	errorTracker          *errors.ErrorContextTracker
 }
 
 // NewActionManager creates a new action manager
@@ -36,20 +40,39 @@ func NewActionManager(
 	config *config.Config,
 	userInterface *ui.UserInterface,
 	formatter *output.OutputFormatter,
+	logger interfaces.Logger,
 ) *ActionManager {
 	safetyManager := NewSafetyManager(validator)
 	confirmationManager := NewConfirmationManager(config, userInterface, formatter)
 	
+	// Initialize error handling and recovery systems
+	recoveryConfig := errors.DefaultRecoveryConfig()
+	if config.Recovery != nil {
+		recoveryConfig = config.Recovery
+	}
+	
+	circuitBreakerConfig := errors.DefaultCircuitBreakerConfig()
+	if config.CircuitBreaker != nil {
+		circuitBreakerConfig = config.CircuitBreaker
+	}
+	
+	recoveryManager := errors.NewRecoveryManager(executor, providerManager, logger, recoveryConfig)
+	circuitBreakerManager := errors.NewCircuitBreakerManager(circuitBreakerConfig)
+	errorTracker := errors.NewErrorContextTracker(1000) // Keep last 1000 errors
+	
 	return &ActionManager{
-		providerManager:     providerManager,
-		saidataManager:      saidataManager,
-		executor:            executor,
-		validator:           validator,
-		config:              config,
-		ui:                  userInterface,
-		formatter:           formatter,
-		safetyManager:       safetyManager,
-		confirmationManager: confirmationManager,
+		providerManager:       providerManager,
+		saidataManager:        saidataManager,
+		executor:              executor,
+		validator:             validator,
+		config:                config,
+		ui:                    userInterface,
+		formatter:             formatter,
+		safetyManager:         safetyManager,
+		confirmationManager:   confirmationManager,
+		recoveryManager:       recoveryManager,
+		circuitBreakerManager: circuitBreakerManager,
+		errorTracker:          errorTracker,
 	}
 }
 
@@ -169,13 +192,56 @@ func (am *ActionManager) ExecuteAction(ctx context.Context, action string, softw
 		}
 	}
 
-	// Step 9: Execute the action
+	// Step 9: Execute the action with circuit breaker protection and error recovery
 	var executionResult *interfaces.ExecutionResult
 	if options.DryRun {
 		am.formatter.ShowInfo("Dry run mode - showing commands that would be executed:")
 		executionResult, err = am.executor.DryRun(ctx, selectedProvider, action, software, saidata, executeOptions)
 	} else {
-		executionResult, err = am.executor.Execute(ctx, selectedProvider, action, software, saidata, executeOptions)
+		// Execute with circuit breaker protection
+		circuitBreakerName := fmt.Sprintf("%s_%s", selectedProvider.Provider.Name, action)
+		err = am.circuitBreakerManager.ExecuteWithCircuitBreaker(circuitBreakerName, func() error {
+			var execErr error
+			executionResult, execErr = am.executor.Execute(ctx, selectedProvider, action, software, saidata, executeOptions)
+			return execErr
+		})
+		
+		// If execution failed and error is recoverable, attempt recovery
+		if err != nil && errors.IsRecoverable(err) {
+			am.formatter.ShowWarning("Action failed, attempting recovery...")
+			
+			// Track the error for debugging
+			errorCtx := am.errorTracker.TrackError(ctx, action, software, selectedProvider.Provider.Name, err)
+			am.formatter.ShowDebug(fmt.Sprintf("Error tracked with ID: %s", errorCtx.ID))
+			
+			// Build recovery context
+			recoveryCtx := errors.BuildRecoveryContext(action, software, selectedProvider, saidata, err)
+			
+			// Attempt recovery
+			recoveryResult, recoveryErr := am.recoveryManager.AttemptRecovery(ctx, recoveryCtx)
+			
+			if recoveryResult.Success {
+				am.formatter.ShowSuccess(fmt.Sprintf("Recovery successful using strategy: %s", recoveryResult.RecoveryStrategy))
+				// Create a successful execution result
+				executionResult = &interfaces.ExecutionResult{
+					Success:  true,
+					Output:   fmt.Sprintf("Recovered from error using %s strategy", recoveryResult.RecoveryStrategy),
+					Commands: []string{}, // Would be populated by recovery
+					ExitCode: 0,
+					Duration: recoveryResult.Duration,
+				}
+				err = nil // Clear the error since recovery succeeded
+			} else {
+				am.formatter.ShowError(fmt.Errorf("Recovery failed: %v", recoveryResult.FinalError))
+				err = recoveryResult.FinalError
+				
+				// Track the recovery failure
+				am.errorTracker.TrackError(ctx, action, software, selectedProvider.Provider.Name, recoveryResult.FinalError)
+			}
+		} else if err != nil {
+			// Track non-recoverable errors
+			am.errorTracker.TrackError(ctx, action, software, selectedProvider.Provider.Name, err)
+		}
 	}
 
 	// Step 10: Build and return result
@@ -721,6 +787,108 @@ func (am *ActionManager) getProviderPriority(provider *types.ProviderData) int {
 		return priority
 	}
 	return provider.Provider.Priority
+}
+
+// GetErrorStats returns error statistics for debugging and monitoring
+func (am *ActionManager) GetErrorStats() *errors.ErrorStats {
+	return am.errorTracker.GetErrorStats()
+}
+
+// GetRecentErrors returns recent error contexts for troubleshooting
+func (am *ActionManager) GetRecentErrors(limit int) []*errors.ErrorContext {
+	return am.errorTracker.GetRecentErrors(limit)
+}
+
+// GetCircuitBreakerStats returns circuit breaker statistics
+func (am *ActionManager) GetCircuitBreakerStats() map[string]*errors.CircuitBreakerStats {
+	return am.circuitBreakerManager.GetAllStats()
+}
+
+// ResetCircuitBreakers resets all circuit breakers
+func (am *ActionManager) ResetCircuitBreakers() {
+	am.circuitBreakerManager.ResetAll()
+	am.formatter.ShowInfo("All circuit breakers have been reset")
+}
+
+// ResetCircuitBreaker resets a specific circuit breaker
+func (am *ActionManager) ResetCircuitBreaker(name string) error {
+	err := am.circuitBreakerManager.ResetCircuitBreaker(name)
+	if err != nil {
+		return errors.WrapSAIError(errors.ErrorTypeInternal, "failed to reset circuit breaker", err)
+	}
+	am.formatter.ShowInfo(fmt.Sprintf("Circuit breaker '%s' has been reset", name))
+	return nil
+}
+
+// ClearErrorHistory clears the error tracking history
+func (am *ActionManager) ClearErrorHistory() {
+	am.errorTracker.ClearErrors()
+	am.formatter.ShowInfo("Error history has been cleared")
+}
+
+// GetErrorContext retrieves detailed error context by ID
+func (am *ActionManager) GetErrorContext(errorID string) (*errors.ErrorContext, bool) {
+	return am.errorTracker.GetErrorContext(errorID)
+}
+
+// ExecuteWithTimeout executes an action with a custom timeout and enhanced error handling
+func (am *ActionManager) ExecuteWithTimeout(ctx context.Context, action string, software string, options interfaces.ActionOptions, timeout time.Duration) (*interfaces.ActionResult, error) {
+	// Create a context with timeout
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	
+	// Add timeout information to context for error tracking
+	timeoutCtx = errors.WithVariable(timeoutCtx, "timeout", timeout.String())
+	timeoutCtx = errors.WithStartTime(timeoutCtx, time.Now())
+	
+	// Execute with the timeout context
+	result, err := am.ExecuteAction(timeoutCtx, action, software, options)
+	
+	// Handle timeout errors specifically
+	if err != nil && timeoutCtx.Err() == context.DeadlineExceeded {
+		timeoutErr := errors.NewActionTimeoutError(action, software, timeout.String()).
+			WithContext("provider", result.Provider).
+			WithSuggestion("Increase timeout value").
+			WithSuggestion("Check system performance and network connectivity")
+		
+		am.errorTracker.TrackError(timeoutCtx, action, software, result.Provider, timeoutErr)
+		return result, timeoutErr
+	}
+	
+	return result, err
+}
+
+// ValidateActionWithRecovery validates an action and provides recovery suggestions
+func (am *ActionManager) ValidateActionWithRecovery(action string, software string) (*interfaces.ValidationResult, error) {
+	// Perform basic validation
+	err := am.ValidateAction(action, software)
+	if err == nil {
+		return &interfaces.ValidationResult{
+			Valid:       true,
+			Suggestions: []string{},
+		}, nil
+	}
+	
+	// Generate recovery suggestions based on error type
+	var suggestions []string
+	if saiErr, ok := err.(*errors.SAIError); ok {
+		suggestions = append(suggestions, saiErr.Suggestions...)
+		
+		switch saiErr.Type {
+		case errors.ErrorTypeProviderNotFound:
+			suggestions = append(suggestions, "Install required package managers")
+			suggestions = append(suggestions, "Check provider availability with 'sai stats'")
+		case errors.ErrorTypeActionNotSupported:
+			suggestions = append(suggestions, "Try a different action")
+			suggestions = append(suggestions, "Check available actions with 'sai info "+software+"'")
+		}
+	}
+	
+	return &interfaces.ValidationResult{
+		Valid:       false,
+		Error:       err,
+		Suggestions: suggestions,
+	}, err
 }
 
 // Ensure ActionManager implements the interface
