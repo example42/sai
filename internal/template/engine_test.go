@@ -95,13 +95,13 @@ func TestTemplateEngine_SaiPackageFunction(t *testing.T) {
 		},
 		Packages: []types.Package{
 			{Name: "apache2", PackageName: "apache2-server", Version: "2.4.58"},
-			{Name: "apache2-utils", Version: "2.4.58"},
+			{Name: "apache2-utils", PackageName: "apache2-utils", Version: "2.4.58"},
 		},
 		Providers: map[string]types.ProviderConfig{
 			"apt": {
 				Packages: []types.Package{
 					{Name: "apache2", PackageName: "apache2-deb", Version: "2.4.58-1ubuntu1"},
-					{Name: "apache2-utils", Version: "2.4.58-1ubuntu1"},
+					{Name: "apache2-utils", PackageName: "apache2-utils", Version: "2.4.58-1ubuntu1"},
 				},
 			},
 			"brew": {
@@ -136,13 +136,18 @@ func TestTemplateEngine_SaiPackageFunction(t *testing.T) {
 			expected: "apache2-utils",
 		},
 		{
-			name:     "sai_package legacy format - single package",
+			name:     "sai_package legacy format - single package (name field)",
 			template: "{{sai_package 0 \"name\" \"apt\"}}",
+			expected: "apache2",
+		},
+		{
+			name:     "sai_package legacy format - single package (package_name field)",
+			template: "{{sai_package 0 \"package_name\" \"apt\"}}",
 			expected: "apache2-deb",
 		},
 		{
-			name:     "sai_package legacy format - all packages",
-			template: "{{sai_package \"*\" \"name\" \"apt\"}}",
+			name:     "sai_package legacy format - all packages (package_name field)",
+			template: "{{sai_package \"*\" \"package_name\" \"apt\"}}",
 			expected: "apache2-deb apache2-utils",
 		},
 		{
@@ -716,7 +721,7 @@ func TestTemplateEngine_ErrorHandling(t *testing.T) {
 		},
 		{
 			name:        "legacy format with missing data",
-			template:    "{{sai_package 0 \"name\" \"apt\"}}",
+			template:    "{{sai_package 0 \"package_name\" \"apt\"}}",
 			expectError: true,
 			errorType:   "no package found",
 		},
@@ -750,7 +755,7 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 			Name: "apache",
 		},
 		Packages: []types.Package{
-			{Name: "apache2", Version: "2.4.58"},
+			{Name: "apache2", PackageName: "apache2", Version: "2.4.58"},
 		},
 		Services: []types.Service{
 			{Name: "apache", ServiceName: "apache2", Type: "systemd"},
@@ -765,7 +770,7 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 		Providers: map[string]types.ProviderConfig{
 			"apt": {
 				Packages: []types.Package{
-					{Name: "apache2", Version: "2.4.58-1ubuntu1"},
+					{Name: "apache2", PackageName: "apache2", Version: "2.4.58-1ubuntu1"},
 				},
 				Services: []types.Service{
 					{Name: "apache", ServiceName: "apache2", Type: "systemd"},
@@ -773,7 +778,7 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 			},
 			"brew": {
 				Packages: []types.Package{
-					{Name: "httpd", Version: "2.4.58"},
+					{Name: "httpd", PackageName: "httpd", Version: "2.4.58"},
 				},
 				Services: []types.Service{
 					{Name: "apache", ServiceName: "httpd", Type: "launchd"},
@@ -797,8 +802,8 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "apt install template",
-			template: "apt-get install -y {{sai_package \"*\" \"name\" \"apt\"}}",
+			name:     "apt install template (updated to use package_name)",
+			template: "apt-get install -y {{sai_package \"*\" \"package_name\" \"apt\"}}",
 			expected: "apt-get install -y apache2",
 		},
 		{
@@ -807,8 +812,8 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 			expected: "systemctl start apache2",
 		},
 		{
-			name:     "brew install template",
-			template: "brew install {{sai_package 0 \"name\" \"brew\"}}",
+			name:     "brew install template (updated to use package_name)",
+			template: "brew install {{sai_package 0 \"package_name\" \"brew\"}}",
 			expected: "brew install httpd",
 		},
 		{

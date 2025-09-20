@@ -191,6 +191,24 @@ func (v *TemplateResolutionValidator) findUnresolvedVariables(rendered string) [
 		unresolved = append(unresolved, "<no value>")
 	}
 	
+	// Check for sai function error indicators
+	errorIndicators := []string{
+		"sai_package error:",
+		"sai_packages error:",
+		"sai_service error:",
+		"sai_port error:",
+		"sai_file error:",
+		"sai_directory error:",
+		"sai_command error:",
+		"sai_container error:",
+	}
+	
+	for _, indicator := range errorIndicators {
+		if strings.Contains(rendered, indicator) {
+			unresolved = append(unresolved, indicator)
+		}
+	}
+	
 	return unresolved
 }
 

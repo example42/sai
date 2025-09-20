@@ -198,7 +198,7 @@ func (e *TemplateEngine) saiPackage(args ...interface{}) string {
 		if !ok {
 			return "sai_package error: first argument must be provider name (string)"
 		}
-		result, err := e.getPackageByIndex(provider, 0)
+		result, err := e.getPackageByIndex(provider, 0, "package_name")
 		if err != nil {
 			return fmt.Sprintf("sai_package error: %v", err)
 		}
@@ -214,7 +214,7 @@ func (e *TemplateEngine) saiPackage(args ...interface{}) string {
 		if !ok {
 			return "sai_package error: second argument must be index (int)"
 		}
-		result, err := e.getPackageByIndex(provider, idx)
+		result, err := e.getPackageByIndex(provider, idx, "package_name")
 		if err != nil {
 			return fmt.Sprintf("sai_package error: %v", err)
 		}
@@ -228,13 +228,13 @@ func (e *TemplateEngine) saiPackage(args ...interface{}) string {
 		}
 		
 		field, ok := args[1].(string)
-		if !ok || field != "name" {
-			return "sai_package error: second argument must be 'name' field"
+		if !ok || (field != "name" && field != "package_name") {
+			return "sai_package error: second argument must be 'name' or 'package_name' field"
 		}
 		
 		// Check if first arg is "*" for all packages
 		if firstArg, ok := args[0].(string); ok && firstArg == "*" {
-			result, err := e.getAllPackageNames(provider)
+			result, err := e.getAllPackageNames(provider, field)
 			if err != nil {
 				return fmt.Sprintf("sai_package error: %v", err)
 			}
@@ -243,7 +243,7 @@ func (e *TemplateEngine) saiPackage(args ...interface{}) string {
 		
 		// Otherwise treat first arg as index
 		if idx, ok := args[0].(int); ok {
-			result, err := e.getPackageByIndex(provider, idx)
+			result, err := e.getPackageByIndex(provider, idx, field)
 			if err != nil {
 				return fmt.Sprintf("sai_package error: %v", err)
 			}
@@ -258,33 +258,44 @@ func (e *TemplateEngine) saiPackage(args ...interface{}) string {
 }
 
 // getPackageByIndex returns package name at specific index for provider
-func (e *TemplateEngine) getPackageByIndex(provider string, idx int) (string, error) {
+func (e *TemplateEngine) getPackageByIndex(provider string, idx int, field string) (string, error) {
 	// Check provider-specific packages first
 	if providerConfig := e.saidata.GetProviderConfig(provider); providerConfig != nil {
 		if len(providerConfig.Packages) > idx {
-			// Use GetPackageNameOrDefault method for consistent naming
-			return providerConfig.Packages[idx].GetPackageNameOrDefault(), nil
+			pkg := providerConfig.Packages[idx]
+			if field == "package_name" {
+				return pkg.GetPackageNameOrDefault(), nil
+			} else {
+				return pkg.Name, nil
+			}
 		}
 	}
 	
 	// Fall back to default packages
 	if len(e.saidata.Packages) > idx {
-		// Use GetPackageNameOrDefault method for consistent naming
-		return e.saidata.Packages[idx].GetPackageNameOrDefault(), nil
+		pkg := e.saidata.Packages[idx]
+		if field == "package_name" {
+			return pkg.GetPackageNameOrDefault(), nil
+		} else {
+			return pkg.Name, nil
+		}
 	}
 	
 	return fmt.Sprintf("sai_package error: no package found at index %d for provider %s", idx, provider), nil
 }
 
 // getAllPackageNames returns all package names for provider (space-separated)
-func (e *TemplateEngine) getAllPackageNames(provider string) (string, error) {
+func (e *TemplateEngine) getAllPackageNames(provider string, field string) (string, error) {
 	var packages []string
 	
 	// Check provider-specific packages first
 	if providerConfig := e.saidata.GetProviderConfig(provider); providerConfig != nil {
 		for _, pkg := range providerConfig.Packages {
-			// Use GetPackageNameOrDefault method for consistent naming
-			packages = append(packages, pkg.GetPackageNameOrDefault())
+			if field == "package_name" {
+				packages = append(packages, pkg.GetPackageNameOrDefault())
+			} else {
+				packages = append(packages, pkg.Name)
+			}
 		}
 		if len(packages) > 0 {
 			return strings.Join(packages, " "), nil
@@ -293,8 +304,11 @@ func (e *TemplateEngine) getAllPackageNames(provider string) (string, error) {
 	
 	// Fall back to default packages
 	for _, pkg := range e.saidata.Packages {
-		// Use GetPackageNameOrDefault method for consistent naming
-		packages = append(packages, pkg.GetPackageNameOrDefault())
+		if field == "package_name" {
+			packages = append(packages, pkg.GetPackageNameOrDefault())
+		} else {
+			packages = append(packages, pkg.Name)
+		}
 	}
 	
 	if len(packages) == 0 {
@@ -305,9 +319,9 @@ func (e *TemplateEngine) getAllPackageNames(provider string) (string, error) {
 }
 
 // saiPackages returns all package names for a specific provider as a space-separated string
-func (e *TemplateEngine) saiPackages(provider string) string {
+func (e *TemplateEngine) saiPackages(provider string) []string {
 	if e.saidata == nil {
-		return "sai_packages error: no saidata context available"
+		return []string{"sai_packages error: no saidata context available"}
 	}
 	
 	var packages []string
@@ -319,7 +333,7 @@ func (e *TemplateEngine) saiPackages(provider string) string {
 			packages = append(packages, pkg.GetPackageNameOrDefault())
 		}
 		if len(packages) > 0 {
-			return strings.Join(packages, " ")
+			return packages
 		}
 	}
 	
@@ -330,10 +344,10 @@ func (e *TemplateEngine) saiPackages(provider string) string {
 	}
 	
 	if len(packages) == 0 {
-		return fmt.Sprintf("sai_packages error: no packages found for provider %s", provider)
+		return []string{fmt.Sprintf("sai_packages error: no packages found for provider %s", provider)}
 	}
 	
-	return strings.Join(packages, " ")
+	return packages
 }
 
 // saiService returns the service name

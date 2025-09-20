@@ -15,6 +15,18 @@ import (
 
 // Mock implementations for testing
 
+// MockLogger implements interfaces.Logger for testing
+type MockLogger struct{}
+
+func (m *MockLogger) Debug(msg string, fields ...interfaces.LogField) {}
+func (m *MockLogger) Info(msg string, fields ...interfaces.LogField) {}
+func (m *MockLogger) Warn(msg string, fields ...interfaces.LogField) {}
+func (m *MockLogger) Error(msg string, err error, fields ...interfaces.LogField) {}
+func (m *MockLogger) Fatal(msg string, err error, fields ...interfaces.LogField) {}
+func (m *MockLogger) WithFields(fields ...interfaces.LogField) interfaces.Logger { return m }
+func (m *MockLogger) SetLevel(level interfaces.LogLevel) {}
+func (m *MockLogger) GetLevel() interfaces.LogLevel { return interfaces.LogLevelInfo }
+
 type mockProviderManager struct {
 	providers map[string]*types.ProviderData
 }
@@ -32,6 +44,9 @@ func (m *mockProviderManager) GetAvailableProviders() []*types.ProviderData {
 		providers = append(providers, provider)
 	}
 	return providers
+}
+func (m *mockProviderManager) GetAllProviders() []*types.ProviderData {
+	return m.GetAvailableProviders()
 }
 func (m *mockProviderManager) SelectProvider(software string, action string, preferredProvider string) (*types.ProviderData, error) {
 	return m.GetProvider(preferredProvider)
@@ -189,6 +204,7 @@ func TestActionManager_ExecuteAction(t *testing.T) {
 
 	formatter := output.NewOutputFormatter(cfg, false, false, false)
 	ui := ui.NewUserInterface(cfg, formatter)
+	logger := &MockLogger{}
 
 	// Create action manager
 	actionManager := NewActionManager(
@@ -199,6 +215,7 @@ func TestActionManager_ExecuteAction(t *testing.T) {
 		cfg,
 		ui,
 		formatter,
+		logger,
 	)
 
 	// Test successful action execution
@@ -300,6 +317,7 @@ func TestActionManager_SafetyChecks(t *testing.T) {
 	ui := ui.NewUserInterface(cfg, formatter)
 
 	// Create action manager
+	logger := &MockLogger{}
 	actionManager := NewActionManager(
 		providerManager,
 		saidataManager,
@@ -308,6 +326,7 @@ func TestActionManager_SafetyChecks(t *testing.T) {
 		cfg,
 		ui,
 		formatter,
+		logger,
 	)
 
 	// Test safety checks
@@ -404,6 +423,7 @@ func TestActionManager_ProviderSelection(t *testing.T) {
 
 	formatter := output.NewOutputFormatter(cfg, false, false, false)
 	ui := ui.NewUserInterface(cfg, formatter)
+	logger := &MockLogger{}
 
 	actionManager := NewActionManager(
 		providerManager,
@@ -413,6 +433,7 @@ func TestActionManager_ProviderSelection(t *testing.T) {
 		cfg,
 		ui,
 		formatter,
+		logger,
 	)
 
 	// Test provider selection with --yes flag (should select highest priority)

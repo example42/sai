@@ -1,4 +1,6 @@
-# SAI - Software Action Interface
+# SAI
+
+Pick the [ACRONYM](ACRONYMS.md) you prefer.
 
 [![CI](https://github.com/example42/sai/workflows/CI/badge.svg)](https://github.com/example42/sai/actions)
 [![Release](https://github.com/example42/sai/workflows/Release/badge.svg)](https://github.com/example42/sai/releases)

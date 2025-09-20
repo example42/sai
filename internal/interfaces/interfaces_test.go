@@ -154,6 +154,7 @@ type mockProviderManager struct{}
 func (m *mockProviderManager) LoadProviders(string) error { return nil }
 func (m *mockProviderManager) GetProvider(string) (*types.ProviderData, error) { return nil, nil }
 func (m *mockProviderManager) GetAvailableProviders() []*types.ProviderData { return nil }
+func (m *mockProviderManager) GetAllProviders() []*types.ProviderData { return nil }
 func (m *mockProviderManager) SelectProvider(string, string, string) (*types.ProviderData, error) { return nil, nil }
 func (m *mockProviderManager) IsProviderAvailable(string) bool { return false }
 func (m *mockProviderManager) GetProvidersForAction(string) []*types.ProviderData { return nil }
@@ -186,6 +187,7 @@ func (m *mockActionManager) SearchAcrossProviders(string) ([]*SearchResult, erro
 func (m *mockActionManager) GetSoftwareInfo(string) ([]*SoftwareInfo, error) { return nil, nil }
 func (m *mockActionManager) GetSoftwareVersions(string) ([]*VersionInfo, error) { return nil, nil }
 func (m *mockActionManager) ManageRepositorySetup(*types.SoftwareData) error { return nil }
+func (m *mockActionManager) GetProviderManager() ProviderManager { return nil }
 
 type mockGenericExecutor struct{}
 func (m *mockGenericExecutor) Execute(context.Context, *types.ProviderData, string, string, *types.SoftwareData, ExecuteOptions) (*ExecutionResult, error) { return nil, nil }

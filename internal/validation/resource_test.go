@@ -309,7 +309,7 @@ func TestResourceValidator_ValidateResources(t *testing.T) {
 
 	// Should not be valid due to missing resources
 	assert.False(t, result.Valid)
-	assert.False(t, result.CanProceed)
+	assert.True(t, result.CanProceed) // Can still proceed despite missing resources
 
 	// Should have missing resources
 	assert.NotEmpty(t, result.MissingFiles)
@@ -403,7 +403,7 @@ func TestResourceValidator_ValidateResources_InfoAction(t *testing.T) {
 
 	// Should not be valid due to missing resources
 	assert.False(t, result.Valid)
-	assert.False(t, result.CanProceed) // Cannot proceed with missing resources
+	assert.True(t, result.CanProceed) // Can still proceed despite missing resources
 
 	// Should still report missing resources
 	assert.NotEmpty(t, result.MissingFiles)

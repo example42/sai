@@ -70,7 +70,7 @@ func TestValidateFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set global variables
-			provider = tt.providerFlag
+			providerFlag = tt.providerFlag
 			cfgFile = tt.configFlag
 
 			err := ValidateFlags()
@@ -88,7 +88,7 @@ func TestValidateFlags(t *testing.T) {
 func TestGetGlobalFlags(t *testing.T) {
 	// Set some test values
 	cfgFile = "test-config.yaml"
-	provider = "apt"
+	providerFlag = "apt"
 	verbose = true
 	dryRun = true
 	yes = false
@@ -147,7 +147,7 @@ func TestApplyFlagOverrides(t *testing.T) {
 	}
 
 	// Set flags
-	provider = "apt"
+	providerFlag = "apt"
 	yes = true
 	verbose = true
 
