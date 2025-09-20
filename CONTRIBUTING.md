@@ -17,7 +17,7 @@ Thank you for your interest in contributing to SAI CLI! This guide will help you
 
 ## Code of Conduct
 
-This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [team@sai-cli.dev](mailto:team@sai-cli.dev).
+This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [sai@example42.com](mailto:sai@example42.com).
 
 ## Getting Started
 
@@ -33,7 +33,7 @@ This project and everyone participating in it is governed by our [Code of Conduc
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/sai.git
+   git clone https://github.com/example42/sai.git
    cd sai
    ```
 3. **Set up the development environment**:
@@ -451,7 +451,7 @@ docs(examples): add MongoDB configuration examples
 - **GitHub Issues**: Bug reports and feature requests
 - **GitHub Discussions**: Questions and general discussion
 - **Pull Requests**: Code review and collaboration
-- **Email**: [team@sai-cli.dev](mailto:team@sai-cli.dev) for private matters
+- **Email**: [sai@example42.com](mailto:sai@example42.com) for private matters
 
 ### Getting Help
 
@@ -520,5 +520,5 @@ Happy contributing! 🚀
 
 For questions about contributing, please:
 - 📖 Read the [documentation](README.md)
-- 💬 Start a [discussion](https://github.com/sai-cli/sai/discussions)
-- 📧 Email us at [team@sai-cli.dev](mailto:team@sai-cli.dev)
+- 💬 Start a [discussion](https://github.com/example42/sai/discussions)
+- 📧 Email us at [sai@example42.com](mailto:sai@example42.com)

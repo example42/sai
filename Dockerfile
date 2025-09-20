@@ -53,7 +53,7 @@ CMD ["--help"]
 # Labels
 LABEL org.opencontainers.image.title="SAI CLI"
 LABEL org.opencontainers.image.description="Universal software management CLI tool"
-LABEL org.opencontainers.image.url="https://github.com/sai-cli/sai"
-LABEL org.opencontainers.image.source="https://github.com/sai-cli/sai"
+LABEL org.opencontainers.image.url="https://github.com/example42/sai"
+LABEL org.opencontainers.image.source="https://github.com/example42/sai"
 LABEL org.opencontainers.image.vendor="SAI CLI Team"
 LABEL org.opencontainers.image.licenses="MIT"

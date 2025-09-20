@@ -34,21 +34,21 @@ Yes, SAI includes multiple safety features:
 
 Unix/Linux/macOS:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/example42/sai/main/scripts/install.sh | bash
 ```
 
 Windows PowerShell:
 ```powershell
-iwr -useb https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/example42/sai/main/scripts/install.ps1 | iex
 ```
 
 **Package managers:**
 ```bash
 # Homebrew (macOS/Linux)
-brew install sai-cli/tap/sai
+brew install example42/tap/sai
 
 # Scoop (Windows)
-scoop bucket add sai-cli https://github.com/sai-cli/scoop-bucket
+scoop bucket add example42 https://github.com/example42/scoop-bucket
 scoop install sai
 ```
 
@@ -307,8 +307,8 @@ actions:
 
 ### How do I contribute to SAI?
 
-1. **Report issues**: https://github.com/sai-cli/sai/issues
-2. **Suggest features**: https://github.com/sai-cli/sai/discussions
+1. **Report issues**: https://github.com/example42/sai/issues
+2. **Suggest features**: https://github.com/example42/sai/discussions
 3. **Contribute providers**: Create YAML files and submit PRs
 4. **Improve documentation**: Help improve guides and examples
 5. **Write code**: Contribute to the Go codebase
@@ -334,7 +334,7 @@ All releases include SHA256 checksums:
 
 ```bash
 # Download checksum file
-curl -L -o checksums.txt https://github.com/sai-cli/sai/releases/latest/download/checksums.txt
+curl -L -o checksums.txt https://github.com/example42/sai/releases/latest/download/checksums.txt
 
 # Verify binary
 sha256sum -c checksums.txt
@@ -399,7 +399,7 @@ SAI has minimal requirements:
 
 ### What features are planned?
 
-See our [roadmap](https://github.com/sai-cli/sai/projects) for upcoming features:
+See our [roadmap](https://github.com/example42/sai/projects) for upcoming features:
 - GUI interface
 - Web dashboard
 - More specialized providers
@@ -408,7 +408,7 @@ See our [roadmap](https://github.com/sai-cli/sai/projects) for upcoming features
 
 ### How can I request features?
 
-1. **Check existing requests**: https://github.com/sai-cli/sai/discussions
+1. **Check existing requests**: https://github.com/example42/sai/discussions
 2. **Create new discussion**: Describe your use case
 3. **Vote on features**: Help prioritize development
 4. **Contribute**: Implement features yourself
@@ -427,8 +427,8 @@ Yes, SAI is actively developed and maintained. We follow semantic versioning and
 ## Still Have Questions?
 
 - 📖 [Documentation](../README.md)
-- 🐛 [Report Issues](https://github.com/sai-cli/sai/issues)
-- 💬 [Ask Questions](https://github.com/sai-cli/sai/discussions)
-- 📧 [Email Support](mailto:team@sai-cli.dev)
+- 🐛 [Report Issues](https://github.com/example42/sai/issues)
+- 💬 [Ask Questions](https://github.com/example42/sai/discussions)
+- 📧 [Email Support](mailto:sai@example42.com)
 
 We're here to help! 🚀

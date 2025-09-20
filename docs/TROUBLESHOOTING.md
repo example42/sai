@@ -117,14 +117,14 @@ sai config --show-path
 1. **Manual download:**
    ```bash
    # Download directly from GitHub
-   curl -L -o sai https://github.com/sai-cli/sai/releases/latest/download/sai-linux-amd64
+   curl -L -o sai https://github.com/example42/sai/releases/latest/download/sai-linux-amd64
    chmod +x sai
    ```
 
 2. **Use alternative download method:**
    ```bash
    # Use wget instead of curl
-   wget https://github.com/sai-cli/sai/releases/latest/download/sai-linux-amd64 -O sai
+   wget https://github.com/example42/sai/releases/latest/download/sai-linux-amd64 -O sai
    ```
 
 3. **Proxy configuration:**
@@ -708,16 +708,16 @@ sai config --dump
 ### Community Support
 
 1. **GitHub Issues:**
-   - Bug reports: https://github.com/sai-cli/sai/issues
-   - Feature requests: https://github.com/sai-cli/sai/issues
+   - Bug reports: https://github.com/example42/sai/issues
+   - Feature requests: https://github.com/example42/sai/issues
 
 2. **GitHub Discussions:**
-   - Questions: https://github.com/sai-cli/sai/discussions
-   - Ideas: https://github.com/sai-cli/sai/discussions
+   - Questions: https://github.com/example42/sai/discussions
+   - Ideas: https://github.com/example42/sai/discussions
 
 3. **Documentation:**
-   - Wiki: https://github.com/sai-cli/sai/wiki
-   - Examples: https://github.com/sai-cli/sai/tree/main/docs
+   - Wiki: https://github.com/example42/sai/wiki
+   - Examples: https://github.com/example42/sai/tree/main/docs
 
 ### Reporting Issues
 
@@ -760,7 +760,7 @@ If SAI is completely broken:
 
 2. **Reinstall SAI:**
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.sh | bash
+   curl -fsSL https://raw.githubusercontent.com/example42/sai/main/scripts/install.sh | bash
    ```
 
 3. **Use system package managers directly:**
@@ -772,4 +772,4 @@ If SAI is completely broken:
 
 ---
 
-This troubleshooting guide covers the most common issues. If you encounter problems not covered here, please check the [GitHub Issues](https://github.com/sai-cli/sai/issues) or create a new issue with detailed information about your problem.
+This troubleshooting guide covers the most common issues. If you encounter problems not covered here, please check the [GitHub Issues](https://github.com/example42/sai/issues) or create a new issue with detailed information about your problem.

@@ -561,4 +561,4 @@ Your contributions help make SAI more useful for everyone!
 
 ---
 
-For more information, see the [main documentation](../README.md) or visit the [SAI CLI website](https://sai-cli.dev).
+For more information, see the [main documentation](../README.md) or visit the [SAI CLI website](https://example42.com).

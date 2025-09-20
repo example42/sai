@@ -8,7 +8,7 @@ param(
 )
 
 # Configuration
-$RepoOwner = "sai-cli"
+$RepoOwner = "example42"
 $RepoName = "sai"
 $BinaryName = "sai.exe"
 

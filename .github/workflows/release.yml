@@ -56,12 +56,12 @@ jobs:
           
           ### Quick Install (Unix/Linux/macOS)
           ```bash
-          curl -fsSL https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.sh | bash
+          curl -fsSL https://raw.githubusercontent.com/example42/sai/main/scripts/install.sh | bash
           ```
           
           ### Quick Install (Windows PowerShell)
           ```powershell
-          iwr -useb https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.ps1 | iex
+          iwr -useb https://raw.githubusercontent.com/example42/sai/main/scripts/install.ps1 | iex
           ```
           
           ### Manual Installation
@@ -192,9 +192,9 @@ jobs:
       uses: mislav/bump-homebrew-formula-action@v2
       with:
         formula-name: sai
-        homebrew-tap: sai-cli/homebrew-tap
+        homebrew-tap: example42/homebrew-tap
         base-branch: main
-        download-url: https://github.com/sai-cli/sai/releases/download/${{ needs.create-release.outputs.version }}/sai-${{ needs.create-release.outputs.version }}-darwin-amd64.tar.gz
+        download-url: https://github.com/example42/sai/releases/download/${{ needs.create-release.outputs.version }}/sai-${{ needs.create-release.outputs.version }}-darwin-amd64.tar.gz
         commit-message: |
           Update sai to ${{ needs.create-release.outputs.version }}
           

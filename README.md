@@ -1,8 +1,8 @@
 # SAI - Software Action Interface
 
-[![CI](https://github.com/sai-cli/sai/workflows/CI/badge.svg)](https://github.com/sai-cli/sai/actions)
-[![Release](https://github.com/sai-cli/sai/workflows/Release/badge.svg)](https://github.com/sai-cli/sai/releases)
-[![Go Report Card](https://goreportcard.com/badge/github.com/sai-cli/sai)](https://goreportcard.com/report/github.com/sai-cli/sai)
+[![CI](https://github.com/example42/sai/workflows/CI/badge.svg)](https://github.com/example42/sai/actions)
+[![Release](https://github.com/example42/sai/workflows/Release/badge.svg)](https://github.com/example42/sai/releases)
+[![Go Report Card](https://goreportcard.com/badge/github.com/example42/sai)](https://goreportcard.com/report/github.com/example42/sai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 SAI is a lightweight CLI tool for executing software management actions using provider-based configurations. The core philosophy is **"Do everything on every software on every OS"** through a unified interface.
@@ -15,30 +15,30 @@ SAI is a lightweight CLI tool for executing software management actions using pr
 
 **Unix/Linux/macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/example42/sai/main/scripts/install.sh | bash
 ```
 
 **Windows PowerShell:**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/example42/sai/main/scripts/install.ps1 | iex
 ```
 
 #### Package Managers
 
 **Homebrew (macOS/Linux):**
 ```bash
-brew install sai-cli/tap/sai
+brew install example42/tap/sai
 ```
 
 **Scoop (Windows):**
 ```powershell
-scoop bucket add sai-cli https://github.com/sai-cli/scoop-bucket
+scoop bucket add example42 https://github.com/example42/scoop-bucket
 scoop install sai
 ```
 
 #### Manual Installation
 
-1. Download the latest release from [GitHub Releases](https://github.com/sai-cli/sai/releases)
+1. Download the latest release from [GitHub Releases](https://github.com/example42/sai/releases)
 2. Extract the archive
 3. Move the binary to a directory in your PATH
 
@@ -261,7 +261,7 @@ sai install nginx --dry-run
 
 ```bash
 # Clone repository
-git clone https://github.com/sai-cli/sai.git
+git clone https://github.com/example42/sai.git
 cd sai
 
 # Build for current platform
@@ -399,7 +399,7 @@ SAI looks for configuration files in:
 Example configuration:
 
 ```yaml
-saidata_repository: "https://github.com/sai-cli/saidata.git"
+saidata_repository: "https://github.com/example42/saidata.git"
 default_provider: ""
 provider_priority:
   apt: 100
@@ -423,7 +423,7 @@ output:
   show_exit_codes: true
 
 repository:
-  git_url: "https://github.com/sai-cli/saidata.git"
+  git_url: "https://github.com/example42/saidata.git"
   local_path: "~/.cache/sai/saidata"
   update_interval: "24h"
   offline_mode: false
@@ -482,10 +482,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 📖 [Documentation](https://github.com/sai-cli/sai/wiki)
-- 🐛 [Issue Tracker](https://github.com/sai-cli/sai/issues)
-- 💬 [Discussions](https://github.com/sai-cli/sai/discussions)
-- 📧 [Email](mailto:team@sai-cli.dev)
+- 📖 [Documentation](https://github.com/example42/sai/wiki)
+- 🐛 [Issue Tracker](https://github.com/example42/sai/issues)
+- 💬 [Discussions](https://github.com/example42/sai/discussions)
+- 📧 [Email](mailto:sai@example42.com)
 
 ---
 

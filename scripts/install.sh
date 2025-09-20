@@ -4,7 +4,7 @@
 set -e
 
 # Configuration
-REPO_OWNER="sai-cli"
+REPO_OWNER="example42"
 REPO_NAME="sai"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="sai"

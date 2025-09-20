@@ -85,7 +85,7 @@ changelog:
 
 release:
   github:
-    owner: sai-cli
+    owner: example42
     name: sai
   draft: false
   prerelease: auto
@@ -99,17 +99,17 @@ release:
     
     **Unix/Linux/macOS:**
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/example42/sai/main/scripts/install.sh | bash
     ```
     
     **Windows PowerShell:**
     ```powershell
-    iwr -useb https://raw.githubusercontent.com/sai-cli/sai/main/scripts/install.ps1 | iex
+    iwr -useb https://raw.githubusercontent.com/example42/sai/main/scripts/install.ps1 | iex
     ```
     
     **Homebrew (macOS/Linux):**
     ```bash
-    brew install sai-cli/tap/sai
+    brew install example42/tap/sai
     ```
     
     ### Manual Installation
@@ -127,17 +127,17 @@ release:
     
     ---
     
-    **Full Changelog**: https://github.com/sai-cli/sai/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/example42/sai/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 brews:
   - name: sai
     repository:
-      owner: sai-cli
+      owner: example42
       name: homebrew-tap
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     folder: Formula
-    homepage: https://github.com/sai-cli/sai
+    homepage: https://github.com/example42/sai
     description: "Universal software management CLI tool"
     license: MIT
     skip_upload: auto
@@ -158,8 +158,8 @@ nfpms:
   - id: sai
     package_name: sai
     vendor: SAI CLI Team
-    homepage: https://github.com/sai-cli/sai
-    maintainer: SAI CLI Team <team@sai-cli.dev>
+    homepage: https://github.com/example42/sai
+    maintainer: SAI CLI Team <sai@example42.com>
     description: Universal software management CLI tool
     license: MIT
     formats:
@@ -191,12 +191,12 @@ publishers:
     ids:
       - sai
     dir: "{{ dir .ArtifactPath }}"
-    cmd: curl -F package=@{{ .ArtifactName }} https://{{ .Env.FURY_TOKEN }}@push.fury.io/sai-cli/
+    cmd: curl -F package=@{{ .ArtifactName }} https://{{ .Env.FURY_TOKEN }}@push.fury.io/example42/
 
 dockers:
   - image_templates:
-      - "ghcr.io/sai-cli/sai:{{ .Version }}-amd64"
-      - "ghcr.io/sai-cli/sai:latest-amd64"
+      - "ghcr.io/example42/sai:{{ .Version }}-amd64"
+      - "ghcr.io/example42/sai:latest-amd64"
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
@@ -206,8 +206,8 @@ dockers:
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
   - image_templates:
-      - "ghcr.io/sai-cli/sai:{{ .Version }}-arm64"
-      - "ghcr.io/sai-cli/sai:latest-arm64"
+      - "ghcr.io/example42/sai:{{ .Version }}-arm64"
+      - "ghcr.io/example42/sai:latest-arm64"
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
@@ -219,14 +219,14 @@ dockers:
     goarch: arm64
 
 docker_manifests:
-  - name_template: "ghcr.io/sai-cli/sai:{{ .Version }}"
+  - name_template: "ghcr.io/example42/sai:{{ .Version }}"
     image_templates:
-      - "ghcr.io/sai-cli/sai:{{ .Version }}-amd64"
-      - "ghcr.io/sai-cli/sai:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/sai-cli/sai:latest"
+      - "ghcr.io/example42/sai:{{ .Version }}-amd64"
+      - "ghcr.io/example42/sai:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/example42/sai:latest"
     image_templates:
-      - "ghcr.io/sai-cli/sai:latest-amd64"
-      - "ghcr.io/sai-cli/sai:latest-arm64"
+      - "ghcr.io/example42/sai:latest-amd64"
+      - "ghcr.io/example42/sai:latest-arm64"
 
 signs:
   - cmd: cosign
