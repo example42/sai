@@ -100,6 +100,91 @@ func (m *mockSaidataManager) GetCachedData(software string) (*types.SoftwareData
 
 type mockExecutor struct{}
 
+type mockResourceValidator struct{}
+
+func (m *mockResourceValidator) ValidateFile(file types.File) bool {
+	return file.Path != "/nonexistent/path"
+}
+
+func (m *mockResourceValidator) ValidateService(service types.Service) bool {
+	return true
+}
+
+func (m *mockResourceValidator) ValidateCommand(command types.Command) bool {
+	return command.Path != "/nonexistent/path" && command.Name != "nonexistent-command"
+}
+
+func (m *mockResourceValidator) ValidateDirectory(directory types.Directory) bool {
+	return directory.Path != "/nonexistent/path"
+}
+
+func (m *mockResourceValidator) ValidatePort(port types.Port) bool {
+	return port.Port > 0 && port.Port <= 65535
+}
+
+func (m *mockResourceValidator) ValidateContainer(container types.Container) bool {
+	return container.Name != ""
+}
+
+func (m *mockResourceValidator) ValidateResources(saidata *types.SoftwareData) (*interfaces.ResourceValidationResult, error) {
+	result := &interfaces.ResourceValidationResult{
+		Valid:              true,
+		MissingFiles:       []string{},
+		MissingDirectories: []string{},
+		MissingCommands:    []string{},
+		MissingServices:    []string{},
+		InvalidPorts:       []int{},
+		Warnings:           []string{},
+		CanProceed:         true,
+	}
+
+	// Check commands
+	for _, command := range saidata.Commands {
+		if !m.ValidateCommand(command) {
+			result.Valid = false
+			result.MissingCommands = append(result.MissingCommands, command.GetPathOrDefault())
+			result.CanProceed = false // Fail for missing critical commands
+		}
+	}
+
+	// Check files
+	for _, file := range saidata.Files {
+		if !m.ValidateFile(file) {
+			result.Valid = false
+			result.MissingFiles = append(result.MissingFiles, file.Path)
+		}
+	}
+
+	// Check directories
+	for _, directory := range saidata.Directories {
+		if !m.ValidateDirectory(directory) {
+			result.Valid = false
+			result.MissingDirectories = append(result.MissingDirectories, directory.Path)
+		}
+	}
+
+	// Check services
+	for _, service := range saidata.Services {
+		if !m.ValidateService(service) {
+			result.Valid = false
+			result.MissingServices = append(result.MissingServices, service.GetServiceNameOrDefault())
+		}
+	}
+
+	return result, nil
+}
+
+func (m *mockResourceValidator) ValidateSystemRequirements(requirements *types.Requirements) (*interfaces.SystemValidationResult, error) {
+	return &interfaces.SystemValidationResult{
+		Valid:                   true,
+		InsufficientMemory:      false,
+		InsufficientDisk:        false,
+		MissingDependencies:     []string{},
+		UnsupportedPlatform:     false,
+		Warnings:                []string{},
+	}, nil
+}
+
 func (m *mockExecutor) Execute(ctx context.Context, provider *types.ProviderData, action string, software string, saidata *types.SoftwareData, options interfaces.ExecuteOptions) (*interfaces.ExecutionResult, error) {
 	return &interfaces.ExecutionResult{
 		Success:  true,
@@ -112,9 +197,7 @@ func (m *mockExecutor) Execute(ctx context.Context, provider *types.ProviderData
 func (m *mockExecutor) ValidateAction(provider *types.ProviderData, action string, software string, saidata *types.SoftwareData) error {
 	return nil
 }
-func (m *mockExecutor) ValidateResources(saidata *types.SoftwareData, action string) (*interfaces.ResourceValidationResult, error) {
-	return &interfaces.ResourceValidationResult{Valid: true, CanProceed: true}, nil
-}
+
 func (m *mockExecutor) DryRun(ctx context.Context, provider *types.ProviderData, action string, software string, saidata *types.SoftwareData, options interfaces.ExecuteOptions) (*interfaces.ExecutionResult, error) {
 	return &interfaces.ExecutionResult{
 		Success:  true,
@@ -146,6 +229,29 @@ func (m *mockExecutor) ExecuteSteps(ctx context.Context, steps []types.Step, sai
 		ExitCode: 0,
 		Duration: time.Millisecond * 200,
 	}, nil
+}
+func (m *mockExecutor) ValidateResources(saidata *types.SoftwareData, action string) (*interfaces.ResourceValidationResult, error) {
+	result := &interfaces.ResourceValidationResult{
+		Valid:              true,
+		MissingFiles:       []string{},
+		MissingDirectories: []string{},
+		MissingCommands:    []string{},
+		MissingServices:    []string{},
+		InvalidPorts:       []int{},
+		Warnings:           []string{},
+		CanProceed:         true,
+	}
+
+	// Check commands for missing ones
+	for _, command := range saidata.Commands {
+		if command.Path == "/nonexistent/path" || command.Name == "nonexistent-command" {
+			result.Valid = false
+			result.MissingCommands = append(result.MissingCommands, command.GetPathOrDefault())
+			result.CanProceed = false
+		}
+	}
+
+	return result, nil
 }
 
 func TestActionManager_ExecuteAction(t *testing.T) {
@@ -260,7 +366,7 @@ func TestActionManager_ExecuteAction(t *testing.T) {
 }
 
 func TestActionManager_SafetyChecks(t *testing.T) {
-	// Setup test data with missing resources
+	// Setup test data with missing resources for a non-install action
 	provider := &types.ProviderData{
 		Version: "1.0",
 		Provider: types.ProviderInfo{
@@ -271,9 +377,9 @@ func TestActionManager_SafetyChecks(t *testing.T) {
 			Priority:    10,
 		},
 		Actions: map[string]types.Action{
-			"install": {
-				Description: "Install software",
-				Template:    "test-install {{.Software}}",
+			"start": {
+				Description: "Start software service",
+				Template:    "systemctl start {{.Software}}",
 			},
 		},
 	}
@@ -302,7 +408,7 @@ func TestActionManager_SafetyChecks(t *testing.T) {
 	}
 
 	executor := &mockExecutor{}
-	validator := validation.NewResourceValidator()
+	validator := &mockResourceValidator{}
 	cfg := &config.Config{
 		Confirmations: config.ConfirmationConfig{
 			Install:      false,
@@ -329,9 +435,9 @@ func TestActionManager_SafetyChecks(t *testing.T) {
 		logger,
 	)
 
-	// Test safety checks
+	// Test safety checks for a service action (not install)
 	safetyManager := actionManager.safetyManager
-	safetyResult, err := safetyManager.CheckActionSafety("install", "test-software", provider, saidata)
+	safetyResult, err := safetyManager.CheckActionSafety("start", "test-software", provider, saidata)
 
 	if err != nil {
 		t.Errorf("Expected no error from safety check, got: %v", err)
@@ -341,7 +447,7 @@ func TestActionManager_SafetyChecks(t *testing.T) {
 		t.Fatal("Expected safety result, got nil")
 	}
 
-	// Should fail due to missing command
+	// Should fail due to missing command for non-install actions
 	if safetyResult.Safe {
 		t.Error("Expected safety check to fail due to missing command")
 	}

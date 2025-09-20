@@ -39,17 +39,17 @@ func TestServiceCommandProperties(t *testing.T) {
 	// Test start command properties
 	assert.Equal(t, "start [software]", startCmd.Use)
 	assert.Equal(t, "Start software service", startCmd.Short)
-	assert.Equal(t, 1, startCmd.Args(nil, []string{"nginx"})) // ExactArgs(1)
+	assert.Nil(t, startCmd.Args(nil, []string{"nginx"})) // ExactArgs(1) - one arg OK
 	
 	// Test stop command properties
 	assert.Equal(t, "stop [software]", stopCmd.Use)
 	assert.Equal(t, "Stop software service", stopCmd.Short)
-	assert.Equal(t, 1, stopCmd.Args(nil, []string{"nginx"})) // ExactArgs(1)
+	assert.Nil(t, stopCmd.Args(nil, []string{"nginx"})) // ExactArgs(1) - one arg OK
 	
 	// Test status command properties (information-only)
 	assert.Equal(t, "status [software]", statusCmd.Use)
 	assert.Equal(t, "Check software service status", statusCmd.Short)
-	assert.Equal(t, 1, statusCmd.Args(nil, []string{"nginx"})) // ExactArgs(1)
+	assert.Nil(t, statusCmd.Args(nil, []string{"nginx"})) // ExactArgs(1) - one arg OK
 	
 	// Test logs command properties (can work with or without software parameter)
 	assert.Equal(t, "logs [software]", logsCmd.Use)
