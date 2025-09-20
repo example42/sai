@@ -3,6 +3,9 @@ version: "0.2"
 # macOS 13-specific overrides for Apache HTTP Server
 # This file demonstrates OS-specific configuration that gets deep-merged with default.yaml
 
+metadata:
+  name: "apache"
+
 packages:
   - name: "httpd"  # macOS uses 'httpd' instead of 'apache2'
     version: "2.4.58"
@@ -79,12 +82,12 @@ providers:
         service_name: "httpd"
         type: "launchd"
         enabled: false  # Don't auto-start on macOS
-        plist_path: "/opt/homebrew/etc/httpd/org.apache.httpd.plist"
+
     files:
       - name: "config"
         path: "/opt/homebrew/etc/httpd/httpd.conf"
         type: "config"
-        template: "macos-httpd.conf.j2"  # macOS-specific template
+
     directories:
       - name: "config"
         path: "/opt/homebrew/etc/httpd"
@@ -93,18 +96,16 @@ providers:
     commands:
       - name: "httpd"
         path: "/opt/homebrew/bin/httpd"
-        shell_integration: "zsh"  # macOS default shell
+
 
 # macOS 13-specific compatibility matrix
 compatibility:
   matrix:
     - provider: "brew"
-      os: "macos"  # Changed from 'platform' to 'os'
+      platform: "macos"
       architecture: ["x86_64", "arm64"]
       os_version: ["13.0"]
       supported: true
       notes: "Recommended installation method for macOS 13"
       tested: true
       recommended: true
-      homebrew_formula: "httpd"
-      minimum_macos: "13.0"

@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
+	"sai/internal/debug"
 	"sai/internal/interfaces"
 	"sai/internal/types"
 	"sai/internal/validation"
@@ -24,65 +26,173 @@ type Manager struct {
 // NewManager creates a new saidata manager
 func NewManager(saidataDir string) *Manager {
 	resourceValidator := NewSystemResourceValidator()
-	// For now, we'll skip schema validation since we don't have the schema path
-	// In a full implementation, this would be passed as a parameter
+	
+	// Try to create schema validator
+	var validator *validation.SaidataValidator
+	schemaPath := "schemas/saidata-0.2-schema.json"
+	if v, err := validation.NewSaidataValidator(schemaPath); err == nil {
+		validator = v
+	} else {
+		fmt.Printf("Warning: Could not load schema validator: %v\n", err)
+	}
+	
 	return &Manager{
 		saidataDir:        saidataDir,
-		validator:         nil, // Skip schema validation for now
+		validator:         validator,
 		cache:             make(map[string]*types.SoftwareData),
 		defaultsGenerator: NewDefaultsGenerator(resourceValidator),
 		resourceValidator: resourceValidator,
 	}
 }
 
+// NewManagerWithBootstrap creates a new saidata manager with automatic bootstrap
+func NewManagerWithBootstrap(gitURL, zipFallbackURL string) (*Manager, error) {
+	// Ensure saidata is available
+	saidataDir, err := EnsureSaidataAvailable(gitURL, zipFallbackURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure saidata availability: %w", err)
+	}
+	
+	return NewManager(saidataDir), nil
+}
+
 // LoadSoftware loads saidata for a specific software with OS-specific overrides
 func (m *Manager) LoadSoftware(name string) (*types.SoftwareData, error) {
+	startTime := time.Now()
+	
 	// Check cache first
 	if cached, exists := m.cache[name]; exists {
+		debug.LogSaidataLoadingGlobal(name, "cache", "", nil, time.Since(startTime), true, nil)
 		return cached, nil
 	}
 
 	// Generate prefix from software name (first 2 characters)
 	prefix := generatePrefix(name)
 	
-	// Load base configuration
-	basePath := filepath.Join(m.saidataDir, prefix, name, "default.yaml")
+	// Load base configuration following hierarchical pattern: software/{prefix}/{software}/default.yaml
+	basePath := filepath.Join(m.saidataDir, "software", prefix, name, "default.yaml")
 	baseData, err := m.loadSaidataFile(basePath)
+	var saidataPath string = basePath
+	var osOverride string = ""
+	
 	if err != nil {
 		// Check if it's a file not found error (including nested path errors)
 		if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file or directory") {
-			baseData, err = m.GenerateDefaults(name)
+			// Try alternative path without "software" prefix for backward compatibility
+			altBasePath := filepath.Join(m.saidataDir, prefix, name, "default.yaml")
+			saidataPath = altBasePath
+			baseData, err = m.loadSaidataFile(altBasePath)
 			if err != nil {
-				return nil, fmt.Errorf("failed to generate defaults for %s: %w", name, err)
+				if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file or directory") {
+					// Generate intelligent defaults
+					saidataPath = "generated_defaults"
+					baseData, err = m.GenerateDefaults(name)
+					if err != nil {
+						debug.LogSaidataLoadingGlobal(name, saidataPath, osOverride, nil, time.Since(startTime), false, err)
+						return nil, fmt.Errorf("failed to generate defaults for software '%s': %w", name, err)
+					}
+					// Cache and return generated defaults (no OS overrides for generated data)
+					m.cache[name] = baseData
+					
+					mergeResults := map[string]interface{}{
+						"source": "generated_defaults",
+						"packages": len(baseData.Packages),
+						"services": len(baseData.Services),
+						"files": len(baseData.Files),
+					}
+					debug.LogSaidataLoadingGlobal(name, saidataPath, osOverride, mergeResults, time.Since(startTime), true, nil)
+					return baseData, nil
+				} else {
+					debug.LogSaidataLoadingGlobal(name, saidataPath, osOverride, nil, time.Since(startTime), false, err)
+					return nil, fmt.Errorf("failed to load base saidata for software '%s' from %s: %w", name, altBasePath, err)
+				}
 			}
 		} else {
-			return nil, fmt.Errorf("failed to load base saidata for %s: %w", name, err)
+			debug.LogSaidataLoadingGlobal(name, saidataPath, osOverride, nil, time.Since(startTime), false, err)
+			return nil, fmt.Errorf("failed to load base saidata for software '%s' from %s: %w", name, basePath, err)
 		}
 	}
 
-	// Detect current OS and version
+	// Detect current OS and version for OS-specific overrides
 	osInfo, err := detectOSInfo()
 	if err != nil {
-		// If OS detection fails, return base data
+		// If OS detection fails, log warning but continue with base data
+		fmt.Printf("Warning: OS detection failed, using base saidata only: %v\n", err)
 		m.cache[name] = baseData
 		return baseData, nil
 	}
 
-	// Try to load OS-specific override
-	overridePath := filepath.Join(m.saidataDir, prefix, name, osInfo.OS, osInfo.Version+".yaml")
+	// Try to load OS-specific override following pattern: software/{prefix}/{software}/{os}/{os_version}.yaml
+	overridePath := filepath.Join(m.saidataDir, "software", prefix, name, osInfo.OS, osInfo.Version+".yaml")
 	if _, err := os.Stat(overridePath); err == nil {
+		osOverride = fmt.Sprintf("%s/%s", osInfo.OS, osInfo.Version)
 		overrideData, err := m.loadSaidataFile(overridePath)
 		if err != nil {
 			// If override fails to load, log warning but continue with base data
-			fmt.Printf("Warning: failed to load OS override %s: %v\n", overridePath, err)
+			fmt.Printf("Warning: failed to load OS override from %s: %v\n", overridePath, err)
 		} else {
 			// Deep merge override with base data
 			baseData = m.mergeSaidata(baseData, overrideData)
+		}
+	} else {
+		// Try alternative path without "software" prefix for backward compatibility
+		altOverridePath := filepath.Join(m.saidataDir, prefix, name, osInfo.OS, osInfo.Version+".yaml")
+		if _, err := os.Stat(altOverridePath); err == nil {
+			osOverride = fmt.Sprintf("%s/%s", osInfo.OS, osInfo.Version)
+			overrideData, err := m.loadSaidataFile(altOverridePath)
+			if err != nil {
+				fmt.Printf("Warning: failed to load OS override from %s: %v\n", altOverridePath, err)
+			} else {
+				// Applying OS override from alternative path
+				baseData = m.mergeSaidata(baseData, overrideData)
+			}
+		} else {
+			// Try without version (just OS) - first with "software" prefix
+			osOnlyPath := filepath.Join(m.saidataDir, "software", prefix, name, osInfo.OS, "default.yaml")
+			if _, err := os.Stat(osOnlyPath); err == nil {
+				osOverride = osInfo.OS
+				overrideData, err := m.loadSaidataFile(osOnlyPath)
+				if err != nil {
+					fmt.Printf("Warning: failed to load OS-only override from %s: %v\n", osOnlyPath, err)
+				} else {
+					// Applying OS-only override
+					baseData = m.mergeSaidata(baseData, overrideData)
+				}
+			} else {
+				// Try alternative path without "software" prefix
+				altOSOnlyPath := filepath.Join(m.saidataDir, prefix, name, osInfo.OS, "default.yaml")
+				if _, err := os.Stat(altOSOnlyPath); err == nil {
+					osOverride = osInfo.OS
+					overrideData, err := m.loadSaidataFile(altOSOnlyPath)
+					if err != nil {
+						fmt.Printf("Warning: failed to load OS-only override from %s: %v\n", altOSOnlyPath, err)
+					} else {
+						// Applying OS-only override from alternative path
+						baseData = m.mergeSaidata(baseData, overrideData)
+					}
+				}
+			}
 		}
 	}
 
 	// Cache the result
 	m.cache[name] = baseData
+	
+	// Log successful saidata loading with merge results
+	mergeResults := map[string]interface{}{
+		"source": saidataPath,
+		"os_override": osOverride,
+		"packages": len(baseData.Packages),
+		"services": len(baseData.Services),
+		"files": len(baseData.Files),
+		"directories": len(baseData.Directories),
+		"commands": len(baseData.Commands),
+		"ports": len(baseData.Ports),
+		"containers": len(baseData.Containers),
+		"providers": len(baseData.Providers),
+	}
+	debug.LogSaidataLoadingGlobal(name, saidataPath, osOverride, mergeResults, time.Since(startTime), true, nil)
+	
 	return baseData, nil
 }
 
@@ -90,20 +200,22 @@ func (m *Manager) LoadSoftware(name string) (*types.SoftwareData, error) {
 func (m *Manager) loadSaidataFile(filePath string) (*types.SoftwareData, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file %s: %w", filePath, err)
+		return nil, fmt.Errorf("failed to read saidata file %s: %w", filePath, err)
 	}
 
 	// Parse YAML
 	saidata, err := types.LoadSoftwareDataFromYAML(data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse YAML from %s: %w", filePath, err)
+		return nil, fmt.Errorf("failed to parse saidata YAML from %s: %w", filePath, err)
 	}
 
-	// Validate against schema (skip if no validator)
+	// Validate against schema if validator is available
 	if m.validator != nil {
 		if err := m.validator.ValidateSaidata(saidata); err != nil {
-			return nil, fmt.Errorf("validation failed for %s: %w", filePath, err)
+			return nil, fmt.Errorf("saidata schema validation failed for %s:\n%w\n\nPlease check that the file follows the saidata-0.2-schema.json format", filePath, err)
 		}
+	} else {
+		fmt.Printf("Warning: Schema validation skipped for %s (validator not available)\n", filePath)
 	}
 
 	return saidata, nil
@@ -207,28 +319,47 @@ func (m *Manager) SearchSoftware(query string) ([]*interfaces.SoftwareInfo, erro
 			}
 
 			parts := strings.Split(relPath, string(filepath.Separator))
-			if len(parts) >= 3 {
-				softwareName := parts[1] // prefix/software/default.yaml
-				
-				// Check if software name matches query
-				if strings.Contains(strings.ToLower(softwareName), strings.ToLower(query)) {
-					// Load basic metadata
-					saidata, err := m.loadSaidataFile(path)
-					if err != nil {
-						return nil // Skip invalid files
-					}
-
-					results = append(results, &interfaces.SoftwareInfo{
-						Software:     softwareName,
-						Provider:     "saidata",
-						PackageName:  softwareName,
-						Version:      saidata.Metadata.Version,
-						Description:  saidata.Metadata.Description,
-						Homepage:     "",
-						License:      "",
-						Dependencies: []string{},
-					})
+			var softwareName string
+			
+			// Handle both hierarchical patterns:
+			// 1. software/{prefix}/{software}/default.yaml (new format)
+			// 2. {prefix}/{software}/default.yaml (backward compatibility)
+			if len(parts) >= 4 && parts[0] == "software" {
+				softwareName = parts[2] // software/prefix/software/default.yaml
+			} else if len(parts) >= 3 {
+				softwareName = parts[1] // prefix/software/default.yaml
+			} else {
+				return nil // Skip invalid paths
+			}
+			
+			// Check if software name matches query
+			if strings.Contains(strings.ToLower(softwareName), strings.ToLower(query)) {
+				// Load basic metadata
+				saidata, err := m.loadSaidataFile(path)
+				if err != nil {
+					fmt.Printf("Warning: Failed to load saidata for %s: %v\n", softwareName, err)
+					return nil // Skip invalid files
 				}
+
+				homepage := ""
+				license := ""
+				if saidata.Metadata.URLs != nil {
+					homepage = saidata.Metadata.URLs.Website
+				}
+				if saidata.Metadata.License != "" {
+					license = saidata.Metadata.License
+				}
+
+				results = append(results, &interfaces.SoftwareInfo{
+					Software:     softwareName,
+					Provider:     "saidata",
+					PackageName:  softwareName,
+					Version:      saidata.Metadata.Version,
+					Description:  saidata.Metadata.Description,
+					Homepage:     homepage,
+					License:      license,
+					Dependencies: []string{},
+				})
 			}
 		}
 
@@ -282,13 +413,35 @@ func generatePrefix(name string) string {
 
 // detectOSInfo detects the current OS and version
 func detectOSInfo() (*OSInfo, error) {
+	// Check for environment variable override for testing
+	if testOS := os.Getenv("SAI_TEST_OS"); testOS != "" {
+		testVersion := os.Getenv("SAI_TEST_OS_VERSION")
+		if testVersion == "" {
+			testVersion = "unknown"
+		}
+		// Using test OS override for testing
+		return &OSInfo{OS: testOS, Version: testVersion}, nil
+	}
+	
 	switch runtime.GOOS {
 	case "linux":
-		return detectLinuxInfo()
+		osInfo, err := detectLinuxInfo()
+		if err != nil {
+			return nil, fmt.Errorf("failed to detect Linux distribution: %w", err)
+		}
+		return osInfo, nil
 	case "darwin":
-		return detectMacOSInfo()
+		osInfo, err := detectMacOSInfo()
+		if err != nil {
+			return nil, fmt.Errorf("failed to detect macOS version: %w", err)
+		}
+		return osInfo, nil
 	case "windows":
-		return detectWindowsInfo()
+		osInfo, err := detectWindowsInfo()
+		if err != nil {
+			return nil, fmt.Errorf("failed to detect Windows version: %w", err)
+		}
+		return osInfo, nil
 	default:
 		return nil, fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
@@ -296,36 +449,96 @@ func detectOSInfo() (*OSInfo, error) {
 
 // detectLinuxInfo detects Linux distribution and version
 func detectLinuxInfo() (*OSInfo, error) {
-	// Try /etc/os-release first
+	// Try /etc/os-release first (most modern distributions)
 	if data, err := os.ReadFile("/etc/os-release"); err == nil {
-		return parseOSRelease(string(data))
+		if osInfo, err := parseOSRelease(string(data)); err == nil {
+			return osInfo, nil
+		}
+		// Failed to parse /etc/os-release, trying other methods
 	}
 
-	// Try /etc/lsb-release
+	// Try /etc/lsb-release (Ubuntu/Debian)
 	if data, err := os.ReadFile("/etc/lsb-release"); err == nil {
-		return parseLSBRelease(string(data))
+		if osInfo, err := parseLSBRelease(string(data)); err == nil {
+			return osInfo, nil
+		}
+		// Failed to parse /etc/lsb-release, trying other methods
+	}
+
+	// Try other distribution-specific files
+	distFiles := map[string]string{
+		"/etc/redhat-release": "rhel",
+		"/etc/centos-release": "centos",
+		"/etc/fedora-release": "fedora",
+		"/etc/debian_version": "debian",
+		"/etc/rocky-release":  "rocky",
+		"/etc/almalinux-release": "almalinux",
+		"/etc/alpine-release": "alpine",
+	}
+	
+	for file, distro := range distFiles {
+		if data, err := os.ReadFile(file); err == nil {
+			version := strings.TrimSpace(string(data))
+			// Extract version number from release strings
+			if strings.Contains(version, "release") {
+				parts := strings.Fields(version)
+				for _, part := range parts {
+					if strings.Contains(part, ".") && len(part) <= 10 {
+						version = part
+						break
+					}
+				}
+			}
+			return &OSInfo{OS: distro, Version: version}, nil
+		}
 	}
 
 	// Fallback to generic linux
+	// No specific Linux distribution detected, using generic linux
 	return &OSInfo{OS: "linux", Version: "unknown"}, nil
 }
 
 // detectMacOSInfo detects macOS version
 func detectMacOSInfo() (*OSInfo, error) {
-	// Use sw_vers command to get macOS version
-	// For now, return a default - this would be implemented with exec.Command
+	// Try to read macOS version from system
+	if data, err := os.ReadFile("/System/Library/CoreServices/SystemVersion.plist"); err == nil {
+		// Parse plist for version - simplified approach
+		content := string(data)
+		if strings.Contains(content, "ProductVersion") {
+			// Extract version using simple string parsing
+			lines := strings.Split(content, "\n")
+			for i, line := range lines {
+				if strings.Contains(line, "ProductVersion") && i+1 < len(lines) {
+					nextLine := strings.TrimSpace(lines[i+1])
+					if strings.HasPrefix(nextLine, "<string>") && strings.HasSuffix(nextLine, "</string>") {
+						version := strings.TrimPrefix(nextLine, "<string>")
+						version = strings.TrimSuffix(version, "</string>")
+						// Extract major version (e.g., "13.0.1" -> "13")
+						parts := strings.Split(version, ".")
+						if len(parts) > 0 {
+							return &OSInfo{OS: "macos", Version: parts[0]}, nil
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// Fallback to default
 	return &OSInfo{OS: "macos", Version: "13"}, nil
 }
 
 // detectWindowsInfo detects Windows version
 func detectWindowsInfo() (*OSInfo, error) {
-	// For now, return a default - this would be implemented with Windows APIs
+	// Try to detect Windows version using registry or system files
+	// For now, return a reasonable default
+	// In a full implementation, this would use Windows APIs or registry queries
 	return &OSInfo{OS: "windows", Version: "11"}, nil
 }
 
 // parseOSRelease parses /etc/os-release format
 func parseOSRelease(content string) (*OSInfo, error) {
-	var osID, versionID string
+	var osID, versionID, prettyName string
 	
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
@@ -334,11 +547,35 @@ func parseOSRelease(content string) (*OSInfo, error) {
 			osID = strings.Trim(strings.TrimPrefix(line, "ID="), "\"")
 		} else if strings.HasPrefix(line, "VERSION_ID=") {
 			versionID = strings.Trim(strings.TrimPrefix(line, "VERSION_ID="), "\"")
+		} else if strings.HasPrefix(line, "PRETTY_NAME=") {
+			prettyName = strings.Trim(strings.TrimPrefix(line, "PRETTY_NAME="), "\"")
 		}
 	}
 
 	if osID == "" {
 		return nil, fmt.Errorf("could not determine OS ID from os-release")
+	}
+
+	// If no VERSION_ID, try to extract from PRETTY_NAME
+	if versionID == "" && prettyName != "" {
+		// Try to extract version from pretty name (e.g., "Ubuntu 22.04.3 LTS")
+		parts := strings.Fields(prettyName)
+		for _, part := range parts {
+			if strings.Contains(part, ".") && len(part) <= 10 {
+				// Extract major version (e.g., "22.04.3" -> "22.04")
+				versionParts := strings.Split(part, ".")
+				if len(versionParts) >= 2 {
+					versionID = versionParts[0] + "." + versionParts[1]
+				} else {
+					versionID = part
+				}
+				break
+			}
+		}
+	}
+
+	if versionID == "" {
+		versionID = "unknown"
 	}
 
 	return &OSInfo{OS: osID, Version: versionID}, nil
@@ -370,25 +607,38 @@ func (m *Manager) GenerateDefaults(software string) (*types.SoftwareData, error)
 	return m.defaultsGenerator.GenerateDefaults(software)
 }
 
-// UpdateRepository updates the saidata repository (placeholder for future implementation)
+// UpdateRepository updates the saidata repository
 func (m *Manager) UpdateRepository() error {
-	// This would implement Git-based repository updates
-	// For now, return nil as this is not implemented yet
-	return nil
+	// Create repository manager with default URLs
+	repoManager := NewRepositoryManager(
+		"https://github.com/example42/saidata.git",
+		"https://github.com/example42/saidata/archive/main.zip",
+	)
+	
+	return repoManager.UpdateRepository()
 }
 
 // ManageRepositoryOperations manages saidata repository operations
 func (m *Manager) ManageRepositoryOperations() error {
-	// This would implement repository management operations
-	// For now, return nil as this is not implemented yet
-	return nil
+	// Create repository manager with default URLs
+	repoManager := NewRepositoryManager(
+		"https://github.com/example42/saidata.git",
+		"https://github.com/example42/saidata/archive/main.zip",
+	)
+	
+	// For now, this just updates the repository
+	return repoManager.UpdateRepository()
 }
 
 // SynchronizeRepository synchronizes the saidata repository
 func (m *Manager) SynchronizeRepository() error {
-	// This would implement repository synchronization
-	// For now, return nil as this is not implemented yet
-	return nil
+	// Create repository manager with default URLs
+	repoManager := NewRepositoryManager(
+		"https://github.com/example42/saidata.git",
+		"https://github.com/example42/saidata/archive/main.zip",
+	)
+	
+	return repoManager.SynchronizeRepository()
 }
 
 // ValidateResourcesExist validates that resources referenced in saidata actually exist
@@ -433,10 +683,20 @@ func (m *Manager) GetSoftwareList() ([]string, error) {
 			}
 
 			parts := strings.Split(relPath, string(filepath.Separator))
-			if len(parts) >= 3 {
-				softwareName := parts[1] // prefix/software/default.yaml
-				softwareList = append(softwareList, softwareName)
+			var softwareName string
+			
+			// Handle both hierarchical patterns:
+			// 1. software/{prefix}/{software}/default.yaml (new format)
+			// 2. {prefix}/{software}/default.yaml (backward compatibility)
+			if len(parts) >= 4 && parts[0] == "software" {
+				softwareName = parts[2] // software/prefix/software/default.yaml
+			} else if len(parts) >= 3 {
+				softwareName = parts[1] // prefix/software/default.yaml
+			} else {
+				return nil // Skip invalid paths
 			}
+			
+			softwareList = append(softwareList, softwareName)
 		}
 
 		return nil

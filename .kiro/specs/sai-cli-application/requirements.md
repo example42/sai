@@ -127,3 +127,86 @@ The SAI CLI application is a lightweight command-line tool for executing softwar
 3. WHEN a command is executed THEN the system SHALL show the output in normal text followed by highlighted exit status (Green for success, Red for failure)
 4. WHEN any executed command fails THEN the sai command exit code SHALL be 1 AND WHEN all commands succeed THEN the exit code SHALL be 0
 5. WHEN validating commands THEN the system SHALL only show and execute commands that can be executed AND SHALL NOT attempt to run commands with unavailable providers or on non-existent software
+
+### Requirement 11
+
+**User Story:** As a system administrator, I want automatic saidata repository management, so that I can use SAI without manual setup and always have up-to-date software definitions.
+
+#### Acceptance Criteria
+
+1. WHEN SAI is executed for the first time THEN the system SHALL display a relevant message about downloading saidata repository
+2. WHEN running as a normal user THEN the system SHALL download saidata to $HOME/.sai/saidata directory
+3. WHEN running as root THEN the system SHALL download saidata to /etc/sai/saidata directory (or Windows equivalent)
+4. WHEN downloading saidata THEN the system SHALL use Git clone as the primary method with zip download as fallback
+5. WHEN the `sai saidata` command is executed THEN the system SHALL provide saidata management operations including update, status, and synchronization
+
+### Requirement 12
+
+**User Story:** As a developer, I want detailed debug information when troubleshooting SAI issues, so that I can diagnose problems effectively.
+
+#### Acceptance Criteria
+
+1. WHEN the `--debug` flag is provided THEN the system SHALL display detailed debug information including provider detection, template resolution, and command execution details
+2. WHEN debug mode is enabled THEN the system SHALL show internal state information, configuration loading, and decision-making processes
+3. WHEN debug mode is enabled THEN the system SHALL log all template variable resolutions and provider selection logic
+4. WHEN debug mode is enabled THEN the system SHALL display timing information for operations and performance metrics
+
+### Requirement 13
+
+**User Story:** As a system administrator, I want accurate provider detection and system statistics, so that I can understand which providers are actually available on my system.
+
+#### Acceptance Criteria
+
+1. WHEN `sai stats` is executed THEN the system SHALL only show providers that are actually available based on executable detection
+2. WHEN a provider defines an `executable` field THEN the system SHALL use that executable to determine provider availability
+3. WHEN provider detection fails THEN the system SHALL not list that provider as available in stats output
+4. WHEN multiple providers are available THEN the system SHALL show accurate availability status for each provider
+
+### Requirement 14
+
+**User Story:** As a system administrator, I want to check software versions using SAI's version command, so that I can see installed software versions across different providers.
+
+#### Acceptance Criteria
+
+1. WHEN `sai version <software>` is executed THEN the system SHALL show the version of the software if installed for all available providers
+2. WHEN a provider has a version action defined THEN the system SHALL use that action's command to retrieve version information
+3. WHEN `sai --version` is executed THEN the system SHALL show SAI's own version information
+4. WHEN software is not installed THEN the system SHALL indicate that the software is not installed for that provider
+5. WHEN version information cannot be retrieved THEN the system SHALL show an appropriate error message
+
+### Requirement 15
+
+**User Story:** As a system administrator, I want compact and informative output when multiple providers are available, so that I can quickly understand my options and make informed decisions.
+
+#### Acceptance Criteria
+
+1. WHEN multiple providers are available for an action THEN the system SHALL display provider name and the full command that will be executed
+2. WHEN showing provider options THEN the system SHALL display "Command: (The full command executed/to execute to get the output)" instead of package/version/description
+3. WHEN an action only displays information and doesn't modify the system THEN the system SHALL execute the command for each available provider without asking for selection
+4. WHEN an action modifies the system THEN the system SHALL still prompt for provider selection
+5. WHEN displaying provider options THEN the system SHALL show availability status for each provider
+
+### Requirement 16
+
+**User Story:** As a system administrator, I want all SAI actions to work correctly, so that I can actually manage software using the tool.
+
+#### Acceptance Criteria
+
+1. WHEN any SAI command is executed THEN the system SHALL successfully complete the requested action without errors
+2. WHEN template resolution occurs THEN all saidata template functions SHALL resolve correctly to actual values
+3. WHEN provider actions are executed THEN the commands SHALL be properly constructed and executed
+4. WHEN saidata is loaded THEN the system SHALL correctly parse and use the software definitions
+5. WHEN providers are loaded THEN the system SHALL correctly parse and execute provider actions
+6. WHEN any action fails THEN the system SHALL provide clear error messages indicating what went wrong and how to fix it
+
+### Requirement 17
+
+**User Story:** As a system administrator, I want consistent naming for packages and services in saidata and providers, so that template functions work predictably across all configurations.
+
+#### Acceptance Criteria
+
+1. WHEN defining packages in saidata THEN the system SHALL use `package_name` parameter instead of `name` for package identification
+2. WHEN using template functions THEN `sai_package()` SHALL reference the `package_name` field consistently
+3. WHEN using template functions THEN `sai_service()` SHALL continue to reference the `service_name` field as before
+4. WHEN updating providers THEN all existing provider templates SHALL be updated to use `package_name` instead of `name`
+5. WHEN updating schemas THEN the saidata schema SHALL be updated to require `package_name` field for packages

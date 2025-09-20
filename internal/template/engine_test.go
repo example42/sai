@@ -55,13 +55,8 @@ func (m *mockDefaultsGenerator) DefaultCommandPath(software string) string {
 }
 
 func TestNewTemplateEngine(t *testing.T) {
-	validator := &mockResourceValidator{
-		files:       make(map[string]bool),
-		services:    make(map[string]bool),
-		commands:    make(map[string]bool),
-		directories: make(map[string]bool),
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
 
 	engine := NewTemplateEngine(validator, defaultsGen)
 	assert.NotNil(t, engine)
@@ -69,13 +64,8 @@ func TestNewTemplateEngine(t *testing.T) {
 }
 
 func TestTemplateEngine_BasicRendering(t *testing.T) {
-	validator := &mockResourceValidator{
-		files:       make(map[string]bool),
-		services:    make(map[string]bool),
-		commands:    make(map[string]bool),
-		directories: make(map[string]bool),
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
 	engine := NewTemplateEngine(validator, defaultsGen)
 
 	// Test basic template rendering
@@ -93,35 +83,30 @@ func TestTemplateEngine_BasicRendering(t *testing.T) {
 }
 
 func TestTemplateEngine_SaiPackageFunction(t *testing.T) {
-	validator := &mockResourceValidator{
-		files:       make(map[string]bool),
-		services:    make(map[string]bool),
-		commands:    make(map[string]bool),
-		directories: make(map[string]bool),
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
 	engine := NewTemplateEngine(validator, defaultsGen)
 
-	// Set up saidata with packages
+	// Set up saidata with packages using both name and package_name fields
 	saidata := &types.SoftwareData{
 		Version: "0.2",
 		Metadata: types.Metadata{
 			Name: "apache",
 		},
 		Packages: []types.Package{
-			{Name: "apache2", Version: "2.4.58"},
+			{Name: "apache2", PackageName: "apache2-server", Version: "2.4.58"},
 			{Name: "apache2-utils", Version: "2.4.58"},
 		},
 		Providers: map[string]types.ProviderConfig{
 			"apt": {
 				Packages: []types.Package{
-					{Name: "apache2", Version: "2.4.58-1ubuntu1"},
+					{Name: "apache2", PackageName: "apache2-deb", Version: "2.4.58-1ubuntu1"},
 					{Name: "apache2-utils", Version: "2.4.58-1ubuntu1"},
 				},
 			},
 			"brew": {
 				Packages: []types.Package{
-					{Name: "httpd", Version: "2.4.58"},
+					{Name: "httpd", PackageName: "httpd-brew", Version: "2.4.58"},
 				},
 			},
 		},
@@ -141,24 +126,39 @@ func TestTemplateEngine_SaiPackageFunction(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "sai_package with provider and index",
-			template: "{{sai_package \"apt\" 0}}",
-			expected: "apache2",
+			name:     "sai_package with provider (new format)",
+			template: "{{sai_package \"apt\"}}",
+			expected: "apache2-deb",
 		},
 		{
-			name:     "sai_package with provider wildcard",
-			template: "{{sai_package \"apt\" \"*\"}}",
-			expected: "apache2 apache2-utils",
+			name:     "sai_package with provider and index (new format)",
+			template: "{{sai_package \"apt\" 1}}",
+			expected: "apache2-utils",
+		},
+		{
+			name:     "sai_package legacy format - single package",
+			template: "{{sai_package 0 \"name\" \"apt\"}}",
+			expected: "apache2-deb",
+		},
+		{
+			name:     "sai_package legacy format - all packages",
+			template: "{{sai_package \"*\" \"name\" \"apt\"}}",
+			expected: "apache2-deb apache2-utils",
 		},
 		{
 			name:     "sai_package with different provider",
-			template: "{{sai_package \"brew\" 0}}",
-			expected: "httpd",
+			template: "{{sai_package \"brew\"}}",
+			expected: "httpd-brew",
 		},
 		{
-			name:     "sai_packages function",
-			template: "{{sai_packages \"apt\"}}",
-			expected: "apache2 apache2-utils",
+			name:     "sai_packages function returns slice",
+			template: "{{range sai_packages \"apt\"}}{{.}} {{end}}",
+			expected: "apache2-deb apache2-utils ",
+		},
+		{
+			name:     "fallback to name when package_name not available",
+			template: "{{sai_package \"apt\" 1}}",
+			expected: "apache2-utils",
 		},
 	}
 
@@ -172,13 +172,8 @@ func TestTemplateEngine_SaiPackageFunction(t *testing.T) {
 }
 
 func TestTemplateEngine_SaiServiceFunction(t *testing.T) {
-	validator := &mockResourceValidator{
-		files:       make(map[string]bool),
-		services:    make(map[string]bool),
-		commands:    make(map[string]bool),
-		directories: make(map[string]bool),
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
 	engine := NewTemplateEngine(validator, defaultsGen)
 
 	saidata := &types.SoftwareData{
@@ -215,14 +210,24 @@ func TestTemplateEngine_SaiServiceFunction(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "sai_service with name",
+			name:     "sai_service with name (new format)",
 			template: "{{sai_service \"apache\"}}",
 			expected: "apache2",
 		},
 		{
-			name:     "sai_service with different provider",
-			template: "{{sai_service \"apache\"}}",
-			expected: "apache2", // Should use apt provider from context
+			name:     "sai_service legacy format",
+			template: "{{sai_service 0 \"service_name\" \"apt\"}}",
+			expected: "apache2",
+		},
+		{
+			name:     "sai_service with different provider context",
+			template: "{{sai_service 0 \"service_name\" \"brew\"}}",
+			expected: "httpd",
+		},
+		{
+			name:     "sai_service fallback to name when service_name empty",
+			template: "{{sai_service \"apache-ssl\"}}",
+			expected: "apache2-ssl",
 		},
 	}
 
@@ -236,13 +241,8 @@ func TestTemplateEngine_SaiServiceFunction(t *testing.T) {
 }
 
 func TestTemplateEngine_SaiFileFunction(t *testing.T) {
-	validator := &mockResourceValidator{
-		files:       make(map[string]bool),
-		services:    make(map[string]bool),
-		commands:    make(map[string]bool),
-		directories: make(map[string]bool),
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
 	engine := NewTemplateEngine(validator, defaultsGen)
 
 	saidata := &types.SoftwareData{
@@ -300,13 +300,8 @@ func TestTemplateEngine_SaiFileFunction(t *testing.T) {
 }
 
 func TestTemplateEngine_SaiPortFunction(t *testing.T) {
-	validator := &mockResourceValidator{
-		files:       make(map[string]bool),
-		services:    make(map[string]bool),
-		commands:    make(map[string]bool),
-		directories: make(map[string]bool),
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
 	engine := NewTemplateEngine(validator, defaultsGen)
 
 	saidata := &types.SoftwareData{
@@ -352,25 +347,17 @@ func TestTemplateEngine_SaiPortFunction(t *testing.T) {
 }
 
 func TestTemplateEngine_ValidationFunctions(t *testing.T) {
-	validator := &mockResourceValidator{
-		files: map[string]bool{
-			"/etc/apache2/apache2.conf": true,
-			"/var/log/apache2/access.log": false,
-		},
-		services: map[string]bool{
-			"apache2": true,
-			"nginx":   false,
-		},
-		commands: map[string]bool{
-			"apache2": true,
-			"nginx":   false,
-		},
-		directories: map[string]bool{
-			"/etc/apache2": true,
-			"/etc/nginx":   false,
-		},
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	validator.SetFileExists("/etc/apache2/apache2.conf", true)
+	validator.SetFileExists("/var/log/apache2/access.log", false)
+	validator.SetServiceExists("apache2", true)
+	validator.SetServiceExists("nginx", false)
+	validator.SetCommandExists("apache2", true)
+	validator.SetCommandExists("nginx", false)
+	validator.SetDirectoryExists("/etc/apache2", true)
+	validator.SetDirectoryExists("/etc/nginx", false)
+	
+	defaultsGen := NewMockDefaultsGenerator()
 	engine := NewTemplateEngine(validator, defaultsGen)
 
 	context := &TemplateContext{
@@ -435,13 +422,8 @@ func TestTemplateEngine_ValidationFunctions(t *testing.T) {
 }
 
 func TestTemplateEngine_DefaultGenerationFunctions(t *testing.T) {
-	validator := &mockResourceValidator{
-		files:       make(map[string]bool),
-		services:    make(map[string]bool),
-		commands:    make(map[string]bool),
-		directories: make(map[string]bool),
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
 	engine := NewTemplateEngine(validator, defaultsGen)
 
 	context := &TemplateContext{
@@ -491,19 +473,13 @@ func TestTemplateEngine_DefaultGenerationFunctions(t *testing.T) {
 }
 
 func TestTemplateEngine_SafetyMode(t *testing.T) {
-	validator := &mockResourceValidator{
-		files: map[string]bool{
-			"/etc/apache2/apache2.conf": true,
-			"/nonexistent/file.conf":    false,
-		},
-		services: map[string]bool{
-			"apache2":     true,
-			"nonexistent": false,
-		},
-		commands:    make(map[string]bool),
-		directories: make(map[string]bool),
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	validator.SetFileExists("/etc/apache2/apache2.conf", true)
+	validator.SetFileExists("/nonexistent/file.conf", false)
+	validator.SetServiceExists("apache2", true)
+	validator.SetServiceExists("nonexistent", false)
+	
+	defaultsGen := NewMockDefaultsGenerator()
 	engine := NewTemplateEngine(validator, defaultsGen)
 
 	saidata := &types.SoftwareData{
@@ -539,10 +515,10 @@ func TestTemplateEngine_SafetyMode(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "nonexistent file should fail in safety mode",
+			name:        "nonexistent file should be detected in safety mode",
 			template:    "cat {{sai_file \"nonexistent\"}}",
 			expectError: true,
-			errorMsg:    "file does not exist",
+			errorMsg:    "nonexistent file",
 		},
 		{
 			name:        "existing service should work",
@@ -550,10 +526,10 @@ func TestTemplateEngine_SafetyMode(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "nonexistent service should fail in safety mode",
+			name:        "nonexistent service should be detected in safety mode",
 			template:    "systemctl start {{sai_service \"nonexistent\"}}",
 			expectError: true,
-			errorMsg:    "service does not exist",
+			errorMsg:    "nonexistent service",
 		},
 	}
 
@@ -575,13 +551,8 @@ func TestTemplateEngine_SafetyMode(t *testing.T) {
 }
 
 func TestTemplateEngine_ValidateTemplate(t *testing.T) {
-	validator := &mockResourceValidator{
-		files:       make(map[string]bool),
-		services:    make(map[string]bool),
-		commands:    make(map[string]bool),
-		directories: make(map[string]bool),
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
 	engine := NewTemplateEngine(validator, defaultsGen)
 
 	tests := []struct {
@@ -631,23 +602,17 @@ func TestTemplateEngine_ValidateTemplate(t *testing.T) {
 }
 
 func TestTemplateEngine_ComplexTemplate(t *testing.T) {
-	validator := &mockResourceValidator{
-		files: map[string]bool{
-			"/etc/apache2/apache2.conf": true,
-		},
-		services: map[string]bool{
-			"apache2": true,
-		},
-		commands:    make(map[string]bool),
-		directories: make(map[string]bool),
-	}
-	defaultsGen := &mockDefaultsGenerator{}
+	validator := NewMockResourceValidator()
+	validator.SetFileExists("/etc/apache2/apache2.conf", true)
+	validator.SetServiceExists("apache2", true)
+	
+	defaultsGen := NewMockDefaultsGenerator()
 	engine := NewTemplateEngine(validator, defaultsGen)
 
 	saidata := &types.SoftwareData{
 		Version: "0.2",
 		Packages: []types.Package{
-			{Name: "apache2", Version: "2.4.58"},
+			{Name: "apache2", PackageName: "apache2-server", Version: "2.4.58"},
 		},
 		Services: []types.Service{
 			{Name: "apache", ServiceName: "apache2", Type: "systemd"},
@@ -658,7 +623,7 @@ func TestTemplateEngine_ComplexTemplate(t *testing.T) {
 		Providers: map[string]types.ProviderConfig{
 			"apt": {
 				Packages: []types.Package{
-					{Name: "apache2", Version: "2.4.58-1ubuntu1"},
+					{Name: "apache2", PackageName: "apache2-deb", Version: "2.4.58-1ubuntu1"},
 				},
 			},
 		},
@@ -684,7 +649,7 @@ if {{file_exists "{{sai_file \"config\"}}"}}; then
 fi
 
 apt-get update
-apt-get install -y {{sai_package "apt" 0}} {{.Variables.extra_flags}}
+apt-get install -y {{sai_package "apt"}} {{.Variables.extra_flags}}
 
 if {{service_exists "{{sai_service \"apache\"}}"}}}; then
     systemctl enable {{sai_service "apache"}}
@@ -698,8 +663,166 @@ echo "Installation complete"`
 	
 	// Verify the template was rendered correctly
 	assert.Contains(t, result, "Install apache using apt")
-	assert.Contains(t, result, "apt-get install -y apache2 --enable-ssl")
+	assert.Contains(t, result, "apt-get install -y apache2-deb --enable-ssl")
 	assert.Contains(t, result, "systemctl enable apache2")
 	assert.Contains(t, result, "systemctl start apache2")
 	assert.Contains(t, result, "/etc/apache2/apache2.conf")
+}
+
+func TestTemplateEngine_ErrorHandling(t *testing.T) {
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
+	engine := NewTemplateEngine(validator, defaultsGen)
+
+	// Test with minimal saidata
+	saidata := &types.SoftwareData{
+		Version: "0.2",
+		Metadata: types.Metadata{
+			Name: "test",
+		},
+	}
+
+	engine.SetSaidata(saidata)
+
+	context := &TemplateContext{
+		Software: "test",
+		Provider: "apt",
+		Saidata:  saidata,
+	}
+
+	tests := []struct {
+		name        string
+		template    string
+		expectError bool
+		errorType   string
+	}{
+		{
+			name:        "missing package should fail",
+			template:    "{{sai_package \"apt\"}}",
+			expectError: true,
+			errorType:   "no package found",
+		},
+		{
+			name:        "missing service should fail",
+			template:    "{{sai_service \"nonexistent\"}}",
+			expectError: true,
+			errorType:   "service nonexistent not found",
+		},
+		{
+			name:        "invalid function parameters",
+			template:    "{{sai_package}}",
+			expectError: true,
+			errorType:   "requires at least one argument",
+		},
+		{
+			name:        "legacy format with missing data",
+			template:    "{{sai_package 0 \"name\" \"apt\"}}",
+			expectError: true,
+			errorType:   "no package found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := engine.Render(tt.template, context)
+			
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorType)
+				assert.Empty(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotEmpty(t, result)
+			}
+		})
+	}
+}
+
+func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
+	engine := NewTemplateEngine(validator, defaultsGen)
+
+	// Test with Apache saidata structure (mimicking the actual file)
+	saidata := &types.SoftwareData{
+		Version: "0.2",
+		Metadata: types.Metadata{
+			Name: "apache",
+		},
+		Packages: []types.Package{
+			{Name: "apache2", Version: "2.4.58"},
+		},
+		Services: []types.Service{
+			{Name: "apache", ServiceName: "apache2", Type: "systemd"},
+		},
+		Files: []types.File{
+			{Name: "config", Path: "/etc/apache2/apache2.conf", Type: "config"},
+		},
+		Ports: []types.Port{
+			{Port: 80, Protocol: "tcp", Service: "http"},
+			{Port: 443, Protocol: "tcp", Service: "https"},
+		},
+		Providers: map[string]types.ProviderConfig{
+			"apt": {
+				Packages: []types.Package{
+					{Name: "apache2", Version: "2.4.58-1ubuntu1"},
+				},
+				Services: []types.Service{
+					{Name: "apache", ServiceName: "apache2", Type: "systemd"},
+				},
+			},
+			"brew": {
+				Packages: []types.Package{
+					{Name: "httpd", Version: "2.4.58"},
+				},
+				Services: []types.Service{
+					{Name: "apache", ServiceName: "httpd", Type: "launchd"},
+				},
+			},
+		},
+	}
+
+	engine.SetSaidata(saidata)
+
+	context := &TemplateContext{
+		Software: "apache",
+		Provider: "apt",
+		Saidata:  saidata,
+	}
+
+	// Test templates that match actual provider files
+	tests := []struct {
+		name     string
+		template string
+		expected string
+	}{
+		{
+			name:     "apt install template",
+			template: "apt-get install -y {{sai_package \"*\" \"name\" \"apt\"}}",
+			expected: "apt-get install -y apache2",
+		},
+		{
+			name:     "systemctl start template",
+			template: "systemctl start {{sai_service 0 \"service_name\" \"apt\"}}",
+			expected: "systemctl start apache2",
+		},
+		{
+			name:     "brew install template",
+			template: "brew install {{sai_package 0 \"name\" \"brew\"}}",
+			expected: "brew install httpd",
+		},
+		{
+			name:     "port reference template",
+			template: "netstat -ln | grep :{{sai_port 0 \"port\" \"\"}}",
+			expected: "netstat -ln | grep :80",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := engine.Render(tt.template, context)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

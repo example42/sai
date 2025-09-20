@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"sai/internal/debug"
 	"sai/internal/types"
 )
 
@@ -234,18 +235,44 @@ func (pd *ProviderDetector) extractVersionFromContent(content string) string {
 
 // IsAvailable checks if a provider is available on the current system
 func (pd *ProviderDetector) IsAvailable(provider *types.ProviderData) bool {
+	return pd.IsAvailableWithDebug(provider, false)
+}
+
+// IsAvailableWithDebug checks if a provider is available with optional debug logging
+func (pd *ProviderDetector) IsAvailableWithDebug(provider *types.ProviderData, debug bool) bool {
 	// Check cache first
 	pd.cacheMutex.RLock()
 	if result, exists := pd.cache[provider.Provider.Name]; exists {
 		if time.Since(result.DetectedAt) < pd.cacheExpiry {
 			pd.cacheMutex.RUnlock()
+			if debug {
+				fmt.Printf("[DEBUG] Provider %s availability from cache: %v\n", provider.Provider.Name, result.Available)
+				if result.Error != nil {
+					fmt.Printf("[DEBUG] Provider %s cache error: %v\n", provider.Provider.Name, result.Error)
+				}
+			}
 			return result.Available
 		}
 	}
 	pd.cacheMutex.RUnlock()
 
+	if debug {
+		fmt.Printf("[DEBUG] Detecting provider %s availability...\n", provider.Provider.Name)
+	}
+
 	// Perform detection
 	result := pd.detectProvider(provider)
+	
+	if debug {
+		fmt.Printf("[DEBUG] Provider %s detection result: available=%v, executable=%s\n", 
+			provider.Provider.Name, result.Available, result.Executable)
+		if result.Error != nil {
+			fmt.Printf("[DEBUG] Provider %s detection error: %v\n", provider.Provider.Name, result.Error)
+		}
+		if result.Version != "" {
+			fmt.Printf("[DEBUG] Provider %s version: %s\n", provider.Provider.Name, result.Version)
+		}
+	}
 	
 	// Cache the result
 	pd.cacheMutex.Lock()
@@ -261,13 +288,14 @@ func (pd *ProviderDetector) detectProvider(provider *types.ProviderData) *Detect
 		DetectedAt: time.Now(),
 	}
 
-	// Check platform compatibility
+	// Check platform compatibility first
 	if !pd.isPlatformCompatible(provider) {
-		result.Error = fmt.Errorf("provider %s not compatible with platform %s", provider.Provider.Name, pd.platform)
+		result.Error = fmt.Errorf("provider %s not compatible with platform %s (supported: %v, current: %s/%s)", 
+			provider.Provider.Name, pd.platform, provider.Provider.Platforms, pd.osInfo.Platform, pd.osInfo.OS)
 		return result
 	}
 
-	// Check executable availability
+	// Check executable availability - this is the critical fix for Requirement 13.2
 	if provider.Provider.Executable != "" {
 		if pd.CheckExecutable(provider.Provider.Executable) {
 			result.Available = true
@@ -278,11 +306,29 @@ func (pd *ProviderDetector) detectProvider(provider *types.ProviderData) *Detect
 				result.Version = version
 			}
 		} else {
-			result.Error = fmt.Errorf("executable %s not found", provider.Provider.Executable)
+			// Provider is not available because executable is missing
+			result.Available = false
+			result.Error = fmt.Errorf("executable '%s' not found in PATH", provider.Provider.Executable)
+			return result
 		}
 	} else {
-		// If no executable specified, assume available if platform compatible
-		result.Available = true
+		// If no executable specified, check if provider name itself is an executable
+		// This handles cases where provider name matches the executable (like 'docker', 'brew')
+		if pd.CheckExecutable(provider.Provider.Name) {
+			result.Available = true
+			result.Executable = provider.Provider.Name
+			
+			// Try to get version
+			if version := pd.getExecutableVersion(provider.Provider.Name); version != "" {
+				result.Version = version
+			}
+		} else {
+			// No executable specified and provider name is not an executable
+			// This means we can't verify availability, so assume available if platform compatible
+			// This handles generic providers that don't have specific executables
+			result.Available = true
+			result.Executable = ""
+		}
 	}
 
 	return result
@@ -311,8 +357,34 @@ func (pd *ProviderDetector) isPlatformCompatible(provider *types.ProviderData) b
 
 // CheckExecutable checks if an executable is available in PATH
 func (pd *ProviderDetector) CheckExecutable(executable string) bool {
-	_, err := exec.LookPath(executable)
-	return err == nil
+	return pd.CheckExecutableWithTimeout(executable, 5*time.Second)
+}
+
+// CheckExecutableWithTimeout checks if an executable is available in PATH with a timeout
+func (pd *ProviderDetector) CheckExecutableWithTimeout(executable string, timeout time.Duration) bool {
+	done := make(chan bool, 1)
+	var result bool
+	
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// If there's a panic in exec.LookPath, treat as not found
+				result = false
+			}
+			done <- true
+		}()
+		
+		_, err := exec.LookPath(executable)
+		result = err == nil
+	}()
+	
+	select {
+	case <-done:
+		return result
+	case <-time.After(timeout):
+		// Timeout - assume executable is not available
+		return false
+	}
 }
 
 // CheckCommand checks if a command can be executed successfully
@@ -332,18 +404,46 @@ func (pd *ProviderDetector) CheckCommand(command string) bool {
 
 // getExecutableVersion attempts to get version information from an executable
 func (pd *ProviderDetector) getExecutableVersion(executable string) string {
+	return pd.getExecutableVersionWithTimeout(executable, 3*time.Second)
+}
+
+// getExecutableVersionWithTimeout attempts to get version information with a timeout
+func (pd *ProviderDetector) getExecutableVersionWithTimeout(executable string, timeout time.Duration) string {
 	// Common version flags to try
 	versionFlags := []string{"--version", "-version", "-V", "-v"}
 	
 	for _, flag := range versionFlags {
-		cmd := exec.Command(executable, flag)
-		cmd.Stderr = nil
+		done := make(chan string, 1)
 		
-		if output, err := cmd.Output(); err == nil {
-			version := strings.TrimSpace(string(output))
-			if version != "" && len(version) < 100 { // Reasonable version string length
+		go func(f string) {
+			defer func() {
+				if r := recover(); r != nil {
+					// If there's a panic, return empty string
+					done <- ""
+				}
+			}()
+			
+			cmd := exec.Command(executable, f)
+			cmd.Stderr = nil
+			
+			if output, err := cmd.Output(); err == nil {
+				version := strings.TrimSpace(string(output))
+				if version != "" && len(version) < 100 { // Reasonable version string length
+					done <- version
+					return
+				}
+			}
+			done <- ""
+		}(flag)
+		
+		select {
+		case version := <-done:
+			if version != "" {
 				return version
 			}
+		case <-time.After(timeout):
+			// Timeout - try next flag or give up
+			continue
 		}
 	}
 	
@@ -449,4 +549,193 @@ func (pd *ProviderDetector) RefreshOSInfo() error {
 	pd.ClearCache()
 	
 	return nil
+}
+
+// LogProviderDetection logs comprehensive provider detection information using the debug system
+func (pd *ProviderDetector) LogProviderDetection(providers []*types.ProviderData) {
+	startTime := time.Now()
+	
+	// Collect provider names and detection results
+	allProviders := make([]string, len(providers))
+	availableProviders := make([]string, 0)
+	detectionResults := make(map[string]bool)
+	
+	for i, provider := range providers {
+		allProviders[i] = provider.Provider.Name
+		available := pd.IsAvailable(provider)
+		detectionResults[provider.Provider.Name] = available
+		
+		if available {
+			availableProviders = append(availableProviders, provider.Provider.Name)
+		}
+	}
+	
+	detectionTime := time.Since(startTime)
+	
+	// Log using the debug system
+	debug.LogProviderDetectionGlobal(allProviders, availableProviders, detectionResults, detectionTime)
+	
+	// Log internal state for troubleshooting
+	if debug.IsDebugEnabled() {
+		state := map[string]interface{}{
+			"platform":           pd.osInfo.Platform,
+			"os":                 pd.osInfo.OS,
+			"version":            pd.osInfo.Version,
+			"architecture":       pd.osInfo.Architecture,
+			"cache_expiry":       pd.cacheExpiry.String(),
+			"cached_entries":     len(pd.cache),
+			"total_providers":    len(providers),
+			"available_count":    len(availableProviders),
+			"unavailable_count":  len(providers) - len(availableProviders),
+		}
+		
+		debug.LogInternalStateGlobal("provider_detector", state)
+	}
+}
+
+// GetDetectionStats returns statistics about provider detection
+func (pd *ProviderDetector) GetDetectionStats(providers []*types.ProviderData) *DetectionStats {
+	stats := &DetectionStats{
+		TotalProviders:      len(providers),
+		AvailableProviders:  0,
+		UnavailableProviders: 0,
+		CachedResults:       0,
+		PlatformCompatible:  0,
+		ExecutableFound:     0,
+		ExecutableMissing:   0,
+		ByType:             make(map[string]*TypeStats),
+		ByPlatform:         make(map[string]*PlatformStats),
+	}
+
+	pd.cacheMutex.RLock()
+	stats.CachedResults = len(pd.cache)
+	pd.cacheMutex.RUnlock()
+
+	for _, provider := range providers {
+		// Check platform compatibility
+		platformCompatible := pd.isPlatformCompatible(provider)
+		if platformCompatible {
+			stats.PlatformCompatible++
+		}
+
+		// Check executable
+		hasExecutable := provider.Provider.Executable != ""
+		executableFound := false
+		if hasExecutable {
+			executableFound = pd.CheckExecutable(provider.Provider.Executable)
+			if executableFound {
+				stats.ExecutableFound++
+			} else {
+				stats.ExecutableMissing++
+			}
+		}
+
+		// Check overall availability
+		available := pd.IsAvailable(provider)
+		if available {
+			stats.AvailableProviders++
+		} else {
+			stats.UnavailableProviders++
+		}
+
+		// Stats by type
+		providerType := provider.Provider.Type
+		if stats.ByType[providerType] == nil {
+			stats.ByType[providerType] = &TypeStats{}
+		}
+		stats.ByType[providerType].Total++
+		if available {
+			stats.ByType[providerType].Available++
+		}
+		if platformCompatible {
+			stats.ByType[providerType].PlatformCompatible++
+		}
+
+		// Stats by platform
+		for _, platform := range provider.Provider.Platforms {
+			if stats.ByPlatform[platform] == nil {
+				stats.ByPlatform[platform] = &PlatformStats{}
+			}
+			stats.ByPlatform[platform].Total++
+			if available {
+				stats.ByPlatform[platform].Available++
+			}
+		}
+	}
+
+	return stats
+}
+
+// OptimizeCache optimizes the detection cache by removing expired entries
+func (pd *ProviderDetector) OptimizeCache() int {
+	pd.cacheMutex.Lock()
+	defer pd.cacheMutex.Unlock()
+
+	removed := 0
+	for name, result := range pd.cache {
+		if time.Since(result.DetectedAt) >= pd.cacheExpiry {
+			delete(pd.cache, name)
+			removed++
+		}
+	}
+
+	return removed
+}
+
+// GetCacheStats returns statistics about the detection cache
+func (pd *ProviderDetector) GetCacheStats() *CacheStats {
+	pd.cacheMutex.RLock()
+	defer pd.cacheMutex.RUnlock()
+
+	stats := &CacheStats{
+		TotalEntries:   len(pd.cache),
+		ValidEntries:   0,
+		ExpiredEntries: 0,
+		CacheExpiry:    pd.cacheExpiry,
+	}
+
+	now := time.Now()
+	for _, result := range pd.cache {
+		if now.Sub(result.DetectedAt) < pd.cacheExpiry {
+			stats.ValidEntries++
+		} else {
+			stats.ExpiredEntries++
+		}
+	}
+
+	return stats
+}
+
+// DetectionStats contains comprehensive provider detection statistics
+type DetectionStats struct {
+	TotalProviders       int
+	AvailableProviders   int
+	UnavailableProviders int
+	CachedResults        int
+	PlatformCompatible   int
+	ExecutableFound      int
+	ExecutableMissing    int
+	ByType               map[string]*TypeStats
+	ByPlatform           map[string]*PlatformStats
+}
+
+// TypeStats contains statistics for a provider type
+type TypeStats struct {
+	Total              int
+	Available          int
+	PlatformCompatible int
+}
+
+// PlatformStats contains statistics for a platform
+type PlatformStats struct {
+	Total     int
+	Available int
+}
+
+// CacheStats contains statistics about the detection cache
+type CacheStats struct {
+	TotalEntries   int
+	ValidEntries   int
+	ExpiredEntries int
+	CacheExpiry    time.Duration
 }

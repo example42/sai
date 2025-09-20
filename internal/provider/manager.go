@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"sai/internal/interfaces"
 	"sai/internal/types"
@@ -117,13 +118,28 @@ func (pm *ProviderManager) GetProvider(name string) (*types.ProviderData, error)
 
 // GetAvailableProviders returns all available providers
 func (pm *ProviderManager) GetAvailableProviders() []*types.ProviderData {
+	return pm.GetAvailableProvidersWithDebug(false)
+}
+
+// GetAvailableProvidersWithDebug returns all available providers with optional debug logging
+func (pm *ProviderManager) GetAvailableProvidersWithDebug(debug bool) []*types.ProviderData {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
 
+	if debug {
+		fmt.Printf("[DEBUG] Checking availability for %d providers...\n", len(pm.providers))
+	}
+
 	var available []*types.ProviderData
 	for _, provider := range pm.providers {
-		if pm.detector.IsAvailable(provider) {
+		if pm.detector.IsAvailableWithDebug(provider, debug) {
 			available = append(available, provider)
+			if debug {
+				fmt.Printf("[DEBUG] Provider %s is available (priority: %d)\n", 
+					provider.Provider.Name, pm.getEffectivePriority(provider))
+			}
+		} else if debug {
+			fmt.Printf("[DEBUG] Provider %s is NOT available\n", provider.Provider.Name)
 		}
 	}
 
@@ -134,7 +150,33 @@ func (pm *ProviderManager) GetAvailableProviders() []*types.ProviderData {
 		return priorityI > priorityJ
 	})
 
+	if debug {
+		fmt.Printf("[DEBUG] Found %d available providers (sorted by priority)\n", len(available))
+		for i, provider := range available {
+			fmt.Printf("[DEBUG] %d. %s (priority: %d)\n", 
+				i+1, provider.Provider.Name, pm.getEffectivePriority(provider))
+		}
+	}
+
 	return available
+}
+
+// GetAllProviders returns all providers (both available and unavailable)
+func (pm *ProviderManager) GetAllProviders() []*types.ProviderData {
+	pm.mutex.RLock()
+	defer pm.mutex.RUnlock()
+
+	var all []*types.ProviderData
+	for _, provider := range pm.providers {
+		all = append(all, provider)
+	}
+
+	// Sort by name for consistent ordering
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].Provider.Name < all[j].Provider.Name
+	})
+
+	return all
 }
 
 // SelectProvider selects the best provider for a software and action
@@ -421,6 +463,81 @@ func (ps *ProviderStats) String() string {
 	}
 	
 	return strings.Join(parts, ", ")
+}
+
+// LogProviderDetection logs comprehensive provider detection information for debugging
+func (pm *ProviderManager) LogProviderDetection(debug bool) {
+	if !debug {
+		return
+	}
+
+	pm.mutex.RLock()
+	defer pm.mutex.RUnlock()
+
+	// Convert map to slice for consistent ordering
+	var allProviders []*types.ProviderData
+	for _, provider := range pm.providers {
+		allProviders = append(allProviders, provider)
+	}
+
+	// Sort by name for consistent output
+	sort.Slice(allProviders, func(i, j int) bool {
+		return allProviders[i].Provider.Name < allProviders[j].Provider.Name
+	})
+
+	// Use detector's comprehensive logging
+	pm.detector.LogProviderDetection(allProviders)
+
+	// Add manager-specific information
+	fmt.Println("[DEBUG] === Provider Manager Configuration ===")
+	fmt.Printf("[DEBUG] Provider Directory: %s\n", pm.config.ProviderDirectory)
+	fmt.Printf("[DEBUG] Default Provider: %s\n", pm.config.DefaultProvider)
+	fmt.Printf("[DEBUG] Provider Priority Overrides: %v\n", pm.config.ProviderPriority)
+	fmt.Printf("[DEBUG] File Watching Enabled: %v\n", pm.config.EnableWatching)
+	
+	// Show detection statistics
+	stats := pm.detector.GetDetectionStats(allProviders)
+	fmt.Println("[DEBUG] === Detection Statistics ===")
+	fmt.Printf("[DEBUG] Total Providers: %d\n", stats.TotalProviders)
+	fmt.Printf("[DEBUG] Available: %d, Unavailable: %d\n", stats.AvailableProviders, stats.UnavailableProviders)
+	fmt.Printf("[DEBUG] Platform Compatible: %d\n", stats.PlatformCompatible)
+	fmt.Printf("[DEBUG] Executable Found: %d, Missing: %d\n", stats.ExecutableFound, stats.ExecutableMissing)
+	fmt.Printf("[DEBUG] Cached Results: %d\n", stats.CachedResults)
+
+	// Show cache statistics
+	cacheStats := pm.detector.GetCacheStats()
+	fmt.Printf("[DEBUG] Cache: %d total, %d valid, %d expired (expiry: %v)\n", 
+		cacheStats.TotalEntries, cacheStats.ValidEntries, cacheStats.ExpiredEntries, cacheStats.CacheExpiry)
+
+	fmt.Println()
+}
+
+// GetDetectionStats returns comprehensive detection statistics
+func (pm *ProviderManager) GetDetectionStats() *DetectionStats {
+	pm.mutex.RLock()
+	defer pm.mutex.RUnlock()
+
+	var allProviders []*types.ProviderData
+	for _, provider := range pm.providers {
+		allProviders = append(allProviders, provider)
+	}
+
+	return pm.detector.GetDetectionStats(allProviders)
+}
+
+// OptimizeCache optimizes the provider detection cache
+func (pm *ProviderManager) OptimizeCache() int {
+	return pm.detector.OptimizeCache()
+}
+
+// GetCacheStats returns cache statistics
+func (pm *ProviderManager) GetCacheStats() *CacheStats {
+	return pm.detector.GetCacheStats()
+}
+
+// SetCacheExpiry sets the cache expiry duration for provider detection
+func (pm *ProviderManager) SetCacheExpiry(duration time.Duration) {
+	pm.detector.SetCacheExpiry(duration)
 }
 
 // Ensure ProviderManager implements the interface

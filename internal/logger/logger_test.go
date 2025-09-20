@@ -259,7 +259,7 @@ func TestLogRepositoryOperation(t *testing.T) {
 	logger.SetOutput(&buf)
 
 	// Test successful repository operation
-	logger.LogRepositoryOperation("clone", "https://github.com/sai-data/saidata.git", true, nil)
+	logger.LogRepositoryOperation("clone", "https://github.com/example42/saidata.git", true, nil)
 
 	output := buf.String()
 	if !strings.Contains(output, "clone") {
@@ -271,7 +271,7 @@ func TestLogRepositoryOperation(t *testing.T) {
 
 	// Reset buffer and test failed repository operation
 	buf.Reset()
-	logger.LogRepositoryOperation("pull", "https://github.com/sai-data/saidata.git", false, os.ErrPermission)
+	logger.LogRepositoryOperation("pull", "https://github.com/example42/saidata.git", false, os.ErrPermission)
 
 	output = buf.String()
 	if !strings.Contains(output, "Repository operation failed") {

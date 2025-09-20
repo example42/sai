@@ -95,7 +95,7 @@ func getDefaultConfig() *Config {
 	cacheDir := filepath.Join(homeDir, ".sai", "cache")
 	
 	return &Config{
-		SaidataRepository: "https://github.com/sai-data/saidata.git",
+		SaidataRepository: "https://github.com/example42/saidata.git",
 		DefaultProvider:   "",
 		ProviderPriority:  make(map[string]int),
 		Timeout:           30 * time.Second,
@@ -120,8 +120,8 @@ func getDefaultConfig() *Config {
 			ShowExitCodes: true,
 		},
 		Repository: RepositoryConfig{
-			GitURL:         "https://github.com/sai-data/saidata.git",
-			ZipFallbackURL: "https://github.com/sai-data/saidata/archive/main.zip",
+			GitURL:         "https://github.com/example42/saidata.git",
+			ZipFallbackURL: "https://github.com/example42/saidata/archive/main.zip",
 			LocalPath:      filepath.Join(cacheDir, "saidata"),
 			UpdateInterval: 24 * time.Hour,
 			OfflineMode:    false,

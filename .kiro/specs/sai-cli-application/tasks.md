@@ -1,11 +1,110 @@
 # Implementation Plan
 
-- [x] 1. Set up Go project structure and core dependencies
-  - Initialize Go module with proper project structure (cmd/, internal/, pkg/)
-  - Add Cobra CLI framework, YAML parsing (gopkg.in/yaml.v3), and logging dependencies
-  - Create main.go entry point and basic CLI structure
-  - Set up build configuration (Makefile) for cross-platform compilation
-  - _Requirements: 7.1, 7.2, 8.1_
+## Phase 1: Fix Core Functionality (Critical)
+
+- [x] 1. Diagnose and fix template resolution system
+  - Analyze current template engine implementation and identify why sai_package(), sai_service() functions fail
+  - Fix template function registration and context passing to ensure saidata is available
+  - Update template functions to properly access package_name field instead of name field
+  - Add comprehensive error handling for template resolution failures with clear error messages
+  - Create unit tests that verify template functions work with existing saidata samples
+  - _Requirements: 16.2, 16.3, 17.2, 17.3_
+
+- [x] 2. Fix provider loading and validation system
+  - Debug current provider YAML loading to identify parsing failures
+  - Fix YAML unmarshaling for all existing provider files (apt.yaml, brew.yaml, docker.yaml, etc.)
+  - Implement proper schema validation against providerdata-0.1-schema.json
+  - Add error handling for malformed provider files with specific error messages
+  - Verify all existing providers load correctly and actions are accessible
+  - _Requirements: 16.4, 16.5_
+
+- [x] 3. Fix saidata loading and parsing system
+  - Debug current saidata loading from docs/saidata_samples/ directory
+  - Fix hierarchical loading (software/{prefix}/{software}/default.yaml pattern)
+  - Implement proper OS-specific override loading and merging
+  - Add schema validation against saidata-0.2-schema.json with clear error messages
+  - Verify existing saidata samples (apache, elasticsearch, etc.) load correctly
+  - _Requirements: 16.4, 16.5_
+
+- [x] 4. Fix command execution and provider action system
+  - Debug why provider actions fail to execute properly
+  - Fix command template rendering with proper saidata context
+  - Implement proper command execution with error handling and output capture
+  - Add validation to ensure commands are executable before attempting to run them
+  - Create comprehensive logging for command execution failures
+  - _Requirements: 16.1, 16.3, 16.6_
+
+## Phase 2: Implement Missing Core Features
+
+- [x] 5. Implement automatic saidata management
+  - Create saidata bootstrap system that detects first-time usage
+  - Implement automatic download to $HOME/.sai/saidata (user) or /etc/sai/saidata (root)
+  - Add Git clone functionality with zip download fallback
+  - Create welcome message display for first-time users
+  - Implement `sai saidata` command for repository management (update, status, sync)
+  - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
+
+- [x] 6. Fix provider detection system
+  - Implement proper executable-based provider detection using provider.executable field
+  - Fix provider availability checking to prevent showing unavailable providers (like apt on macOS)
+  - Update `sai stats` command to only show actually available providers
+  - Add provider detection caching for performance
+  - Create comprehensive provider detection logging for debugging
+  - _Requirements: 13.1, 13.2, 13.3, 13.4_
+
+- [x] 7. Implement debug system
+  - Add --debug flag to root command with comprehensive debug logging
+  - Implement debug logging for provider detection, template resolution, command execution
+  - Add performance timing and metrics collection in debug mode
+  - Create debug output for configuration loading and decision-making processes
+  - Add internal state logging for troubleshooting complex issues
+  - _Requirements: 12.1, 12.2, 12.3, 12.4_
+
+## Phase 3: Improve User Experience
+
+- [x] 8. Fix and improve version command functionality
+  - Separate `sai --version` (SAI version) from `sai version <software>` (software version)
+  - Implement proper software version checking using provider version actions
+  - Add support for showing version across all available providers
+  - Display installation status alongside version information
+  - Add proper error handling when version information cannot be retrieved
+  - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5_
+
+- [x] 9. Improve output formatting and provider selection
+  - Update provider selection UI to show actual commands instead of package details
+  - Implement automatic execution for information-only commands (search, info, status, etc.)
+  - Add compact output format showing "Command: (full command)" for each provider
+  - Maintain provider selection prompts only for system-changing operations
+  - Update output formatting to be more concise and informative
+  - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5_
+
+## Phase 4: Data Structure Consistency
+
+- [ ] 10. Standardize package naming across all components
+  - Update saidata-0.2-schema.json to require package_name field for packages
+  - Update all existing saidata samples to use package_name instead of name
+  - Update all provider templates to reference package_name consistently
+  - Update template functions to use package_name field for package resolution
+  - Verify all existing providers work with updated package_name structure
+  - _Requirements: 17.1, 17.2, 17.4, 17.5_
+
+## Phase 5: Testing and Validation
+
+- [ ] 11. Create comprehensive test suite for fixed functionality
+  - Write integration tests that verify all basic SAI commands work (install, status, version, etc.)
+  - Create tests using existing provider files and saidata samples
+  - Add tests for template resolution with real saidata
+  - Implement tests for provider detection across different platforms
+  - Create end-to-end tests that verify complete workflows work correctly
+  - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6_
+
+- [ ] 12. Add error handling and recovery systems
+  - Implement comprehensive error handling with clear, actionable error messages
+  - Add error context and suggestions for common failure scenarios
+  - Create recovery mechanisms for transient failures
+  - Add validation systems that prevent execution when resources don't exist
+  - Implement graceful degradation when providers or saidata are unavailable
+  - _Requirements: 16.6_
 
 - [x] 2. Implement core data structures and YAML parsing
   - [x] 2.1 Create provider data structures matching existing YAML files

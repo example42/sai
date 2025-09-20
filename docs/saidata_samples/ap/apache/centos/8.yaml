@@ -3,6 +3,9 @@ version: "0.2"
 # CentOS 8-specific overrides for Apache HTTP Server
 # This file demonstrates OS-specific configuration that gets deep-merged with default.yaml
 
+metadata:
+  name: "apache"
+
 packages:
   - name: "httpd"  # CentOS uses 'httpd' instead of 'apache2'
     version: "2.4.37-43.module_el8.5.0+1022+b541f3b1"
@@ -95,39 +98,28 @@ providers:
       "ca-certificates",
       "centos-release"  # CentOS-specific release package
     ]
-    post_install_commands: [
-      "systemctl enable httpd",
-      "systemctl start httpd",
-      "firewall-cmd --permanent --add-service=http",  # CentOS firewall
-      "firewall-cmd --permanent --add-service=https",
-      "firewall-cmd --reload"
-    ]
+
     services:
       - name: "apache"
         service_name: "httpd"
         type: "systemd"
         enabled: true
-        centos_selinux: true  # CentOS-specific SELinux consideration
+
     repositories:
       - name: "appstream"
         url: "http://mirror.centos.org/centos/8-stream/AppStream/x86_64/os/"
         key: "RPM-GPG-KEY-centosofficial"
         type: "os-default"
         components: ["appstream"]
-        centos_stream: true
 
 # CentOS 8-specific compatibility
 compatibility:
   matrix:
     - provider: "dnf"
       platform: ["linux"]
-      os: ["centos"]
       architecture: ["x86_64", "aarch64"]
       os_version: ["8"]
       supported: true
       notes: "Native CentOS 8 package with SELinux integration"
       tested: true
       recommended: true
-      centos_stream: true
-      selinux_support: true
-      package_version: "2.4.37-43.module_el8.5.0+1022+b541f3b1"

@@ -66,6 +66,7 @@ type SecurityMetadata struct {
 // Package represents a software package
 type Package struct {
 	Name         string   `yaml:"name" json:"name"`
+	PackageName  string   `yaml:"package_name,omitempty" json:"package_name,omitempty"` // New field for consistent naming
 	Version      string   `yaml:"version,omitempty" json:"version,omitempty"`
 	Alternatives []string `yaml:"alternatives,omitempty" json:"alternatives,omitempty"`
 	InstallOptions string `yaml:"install_options,omitempty" json:"install_options,omitempty"`
@@ -281,7 +282,140 @@ func LoadSoftwareDataFromYAML(data []byte) (*SoftwareData, error) {
 
 // ToJSON converts the saidata to JSON for validation
 func (s *SoftwareData) ToJSON() ([]byte, error) {
-	return json.Marshal(s)
+	// Create a map to properly handle empty values for schema validation
+	result := make(map[string]interface{})
+	
+	// Always include version (required)
+	result["version"] = s.Version
+	
+	// Handle metadata (required)
+	metadata := make(map[string]interface{})
+	if s.Metadata.Name != "" {
+		metadata["name"] = s.Metadata.Name
+	}
+	if s.Metadata.DisplayName != "" {
+		metadata["display_name"] = s.Metadata.DisplayName
+	}
+	if s.Metadata.Description != "" {
+		metadata["description"] = s.Metadata.Description
+	}
+	if s.Metadata.Version != "" {
+		metadata["version"] = s.Metadata.Version
+	}
+	if s.Metadata.Category != "" {
+		metadata["category"] = s.Metadata.Category
+	}
+	if s.Metadata.Subcategory != "" {
+		metadata["subcategory"] = s.Metadata.Subcategory
+	}
+	if len(s.Metadata.Tags) > 0 {
+		metadata["tags"] = s.Metadata.Tags
+	}
+	if s.Metadata.License != "" {
+		metadata["license"] = s.Metadata.License
+	}
+	if s.Metadata.Language != "" {
+		metadata["language"] = s.Metadata.Language
+	}
+	if s.Metadata.Maintainer != "" {
+		metadata["maintainer"] = s.Metadata.Maintainer
+	}
+	if s.Metadata.URLs != nil {
+		metadata["urls"] = s.Metadata.URLs
+	}
+	if s.Metadata.Security != nil {
+		metadata["security"] = s.Metadata.Security
+	}
+	
+	result["metadata"] = metadata
+	
+	// Add optional arrays only if they have content
+	if len(s.Packages) > 0 {
+		// Filter out packages with empty names for validation
+		var validPackages []interface{}
+		for _, pkg := range s.Packages {
+			pkgMap := make(map[string]interface{})
+			if pkg.Name != "" {
+				pkgMap["name"] = pkg.Name
+			}
+			if pkg.PackageName != "" {
+				pkgMap["package_name"] = pkg.PackageName
+			}
+			if pkg.Version != "" {
+				pkgMap["version"] = pkg.Version
+			}
+			if len(pkg.Alternatives) > 0 {
+				pkgMap["alternatives"] = pkg.Alternatives
+			}
+			if pkg.InstallOptions != "" {
+				pkgMap["install_options"] = pkg.InstallOptions
+			}
+			if pkg.Repository != "" {
+				pkgMap["repository"] = pkg.Repository
+			}
+			if pkg.Checksum != "" {
+				pkgMap["checksum"] = pkg.Checksum
+			}
+			if pkg.Signature != "" {
+				pkgMap["signature"] = pkg.Signature
+			}
+			if pkg.DownloadURL != "" {
+				pkgMap["download_url"] = pkg.DownloadURL
+			}
+			validPackages = append(validPackages, pkgMap)
+		}
+		result["packages"] = validPackages
+	}
+	if len(s.Services) > 0 {
+		// Filter out services with empty names for validation
+		var validServices []interface{}
+		for _, svc := range s.Services {
+			svcMap := make(map[string]interface{})
+			if svc.Name != "" {
+				svcMap["name"] = svc.Name
+			}
+			if svc.ServiceName != "" {
+				svcMap["service_name"] = svc.ServiceName
+			}
+			if svc.Type != "" {
+				svcMap["type"] = svc.Type
+			}
+			if svc.Enabled {
+				svcMap["enabled"] = svc.Enabled
+			}
+			if len(svc.ConfigFiles) > 0 {
+				svcMap["config_files"] = svc.ConfigFiles
+			}
+			validServices = append(validServices, svcMap)
+		}
+		result["services"] = validServices
+	}
+	if len(s.Files) > 0 {
+		result["files"] = s.Files
+	}
+	if len(s.Directories) > 0 {
+		result["directories"] = s.Directories
+	}
+	if len(s.Commands) > 0 {
+		result["commands"] = s.Commands
+	}
+	if len(s.Ports) > 0 {
+		result["ports"] = s.Ports
+	}
+	if len(s.Containers) > 0 {
+		result["containers"] = s.Containers
+	}
+	if len(s.Providers) > 0 {
+		result["providers"] = s.Providers
+	}
+	if s.Compatibility != nil {
+		result["compatibility"] = s.Compatibility
+	}
+	if s.Requirements != nil {
+		result["requirements"] = s.Requirements
+	}
+	
+	return json.Marshal(result)
 }
 
 // GetPackageByName returns a package by name
@@ -440,4 +574,12 @@ func (p *Port) GetProtocolOrDefault() string {
 		return p.Protocol
 	}
 	return "tcp"
+}
+
+// GetPackageNameOrDefault returns the package_name field if available, otherwise falls back to name
+func (p *Package) GetPackageNameOrDefault() string {
+	if p.PackageName != "" {
+		return p.PackageName
+	}
+	return p.Name
 }

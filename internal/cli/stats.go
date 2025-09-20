@@ -91,6 +91,9 @@ func executeStatsCommand() error {
 	config := GetGlobalConfig()
 	flags := GetGlobalFlags()
 
+	// Check for debug flag (from --debug global flag)
+	debug := flags.Debug
+
 	// Create output formatter
 	formatter := output.NewOutputFormatter(config, flags.Verbose, flags.Quiet, flags.JSONOutput)
 
@@ -99,6 +102,21 @@ func executeStatsCommand() error {
 	if err != nil {
 		formatter.ShowError(fmt.Errorf("failed to initialize managers: %w", err))
 		return err
+	}
+
+	// Show debug information if requested (Requirement 13.4)
+	if debug {
+		fmt.Println("[DEBUG] === SAI Stats Command Debug Information ===")
+		if pm := actionManager.GetProviderManager(); pm != nil {
+			// Try to cast to concrete type to access debug methods
+			if providerManager, ok := pm.(interface {
+				LogProviderDetection(bool)
+				GetDetectionStats() interface{}
+				GetCacheStats() interface{}
+			}); ok {
+				providerManager.LogProviderDetection(debug)
+			}
+		}
 	}
 
 	// Show progress
@@ -123,6 +141,27 @@ func executeStatsCommand() error {
 		displayStats(stats, formatter, userInterface, flags.Verbose)
 	}
 
+	// Show additional debug information after stats
+	if debug {
+		fmt.Println("\n[DEBUG] === Additional Debug Information ===")
+		if pm := actionManager.GetProviderManager(); pm != nil {
+			// Try to cast to concrete type to access debug methods
+			if providerManager, ok := pm.(interface {
+				GetDetectionStats() interface{}
+				GetCacheStats() interface{}
+			}); ok {
+				// Use reflection-like approach to get stats
+				detectionStatsInterface := providerManager.GetDetectionStats()
+				cacheStatsInterface := providerManager.GetCacheStats()
+				
+				// Basic debug output without type assertions
+				fmt.Printf("[DEBUG] Detection and cache statistics available\n")
+				fmt.Printf("[DEBUG] Detection stats type: %T\n", detectionStatsInterface)
+				fmt.Printf("[DEBUG] Cache stats type: %T\n", cacheStatsInterface)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -145,8 +184,8 @@ func collectSystemStats(ctx context.Context, actionManager interfaces.ActionMana
 		Summary: StatsSummary{},
 	}
 
-	// Collect provider statistics (simulated for now)
-	providerStats := getProviderStats()
+	// Collect provider statistics from actual provider manager
+	providerStats := getProviderStats(actionManager)
 	stats.Providers = providerStats
 
 	// Calculate provider summary
@@ -176,73 +215,81 @@ func collectSystemStats(ctx context.Context, actionManager interfaces.ActionMana
 	return stats, nil
 }
 
-// getProviderStats returns statistics for all providers (simulated)
-func getProviderStats() []ProviderStats {
-	// This is a placeholder implementation
-	// In a real implementation, this would query the actual provider manager
-	return []ProviderStats{
-		{
-			Name:         "apt",
-			DisplayName:  "APT Package Manager",
-			Type:         "package_manager",
-			Available:    true,
-			Priority:     10,
-			Platforms:    []string{"linux"},
-			Capabilities: []string{"install", "uninstall", "upgrade", "search", "info"},
-			Actions:      []string{"install", "uninstall", "upgrade", "search", "info", "version"},
-			Executable:   "apt",
-			Status:       "available",
-		},
-		{
-			Name:         "brew",
-			DisplayName:  "Homebrew Package Manager",
-			Type:         "package_manager",
-			Available:    runtime.GOOS == "darwin",
-			Priority:     10,
-			Platforms:    []string{"darwin", "linux"},
-			Capabilities: []string{"install", "uninstall", "upgrade", "search", "info"},
-			Actions:      []string{"install", "uninstall", "upgrade", "search", "info", "version"},
-			Executable:   "brew",
-			Status:       getProviderStatus("brew", runtime.GOOS == "darwin"),
-		},
-		{
-			Name:         "docker",
-			DisplayName:  "Docker Container Manager",
-			Type:         "container",
-			Available:    true,
-			Priority:     8,
-			Platforms:    []string{"linux", "darwin", "windows"},
-			Capabilities: []string{"install", "uninstall", "start", "stop", "restart", "status"},
-			Actions:      []string{"install", "uninstall", "start", "stop", "restart", "status", "logs"},
-			Executable:   "docker",
-			Status:       "available",
-		},
-		{
-			Name:         "npm",
-			DisplayName:  "Node Package Manager",
-			Type:         "package_manager",
-			Available:    false,
-			Priority:     5,
-			Platforms:    []string{"linux", "darwin", "windows"},
-			Capabilities: []string{"install", "uninstall", "upgrade", "search", "info"},
-			Actions:      []string{"install", "uninstall", "upgrade", "search", "info", "version"},
-			Executable:   "npm",
-			Status:       "not available",
-			Error:        "npm executable not found in PATH",
-		},
-		{
-			Name:         "systemd",
-			DisplayName:  "Systemd Service Manager",
-			Type:         "specialized",
-			Available:    runtime.GOOS == "linux",
-			Priority:     9,
-			Platforms:    []string{"linux"},
-			Capabilities: []string{"start", "stop", "restart", "enable", "disable", "status"},
-			Actions:      []string{"start", "stop", "restart", "enable", "disable", "status", "logs"},
-			Executable:   "systemctl",
-			Status:       getProviderStatus("systemctl", runtime.GOOS == "linux"),
-		},
+// getProviderStats returns statistics for providers (only available ones by default, all in verbose mode)
+func getProviderStats(actionManager interfaces.ActionManager) []ProviderStats {
+	providerManager := actionManager.GetProviderManager()
+	
+	// Get all providers and available providers
+	allProviders := providerManager.GetAllProviders()
+	availableProviders := providerManager.GetAvailableProviders()
+	
+	// Create a map of available providers for quick lookup
+	availableMap := make(map[string]bool)
+	for _, provider := range availableProviders {
+		availableMap[provider.Provider.Name] = true
 	}
+	
+	var stats []ProviderStats
+	
+	// Process all providers to get complete information
+	for _, provider := range allProviders {
+		available := availableMap[provider.Provider.Name]
+		
+		// Get action names
+		var actionNames []string
+		for actionName := range provider.Actions {
+			actionNames = append(actionNames, actionName)
+		}
+		sort.Strings(actionNames) // Sort for consistent output
+		
+		// Determine status and error message
+		status := "not available"
+		errorMsg := ""
+		if available {
+			status = "available"
+		} else {
+			// Fallback error messages based on provider configuration
+			if provider.Provider.Executable != "" {
+				errorMsg = fmt.Sprintf("executable '%s' not found", provider.Provider.Executable)
+			} else if len(provider.Provider.Platforms) > 0 {
+				errorMsg = fmt.Sprintf("not available on this platform (supports: %v)", provider.Provider.Platforms)
+			} else {
+				errorMsg = "not available on this platform"
+			}
+		}
+		
+		// Get display name
+		displayName := provider.Provider.DisplayName
+		if displayName == "" {
+			displayName = strings.Title(strings.ReplaceAll(provider.Provider.Name, "_", " "))
+		}
+		
+		stat := ProviderStats{
+			Name:         provider.Provider.Name,
+			DisplayName:  displayName,
+			Type:         provider.Provider.Type,
+			Available:    available,
+			Priority:     provider.Provider.Priority,
+			Platforms:    provider.Provider.Platforms,
+			Capabilities: provider.Provider.Capabilities,
+			Actions:      actionNames,
+			Executable:   provider.Provider.Executable,
+			Status:       status,
+			Error:        errorMsg,
+		}
+		
+		stats = append(stats, stat)
+	}
+	
+	// Sort stats by availability first, then by name
+	sort.Slice(stats, func(i, j int) bool {
+		if stats[i].Available != stats[j].Available {
+			return stats[i].Available // Available providers first
+		}
+		return stats[i].Name < stats[j].Name
+	})
+	
+	return stats
 }
 
 // collectActionStats collects statistics about available actions
@@ -352,7 +399,7 @@ func displayStats(stats *SystemStats, formatter *output.OutputFormatter, userInt
 		for providerType, providers := range providersByType {
 			fmt.Printf("\n  %s:\n", strings.Title(strings.ReplaceAll(providerType, "_", " ")))
 			
-			headers := []string{"Name", "Status", "Priority", "Actions", "Platforms"}
+			headers := []string{"Name", "Status", "Priority", "Actions", "Platforms", "Executable"}
 			var rows [][]string
 			
 			for _, provider := range providers {
@@ -362,7 +409,7 @@ func displayStats(stats *SystemStats, formatter *output.OutputFormatter, userInt
 				}
 				
 				actionsStr := fmt.Sprintf("%d actions", len(provider.Actions))
-				if len(provider.Actions) <= 3 {
+				if len(provider.Actions) <= 3 && len(provider.Actions) > 0 {
 					actionsStr = strings.Join(provider.Actions, ", ")
 				}
 				
@@ -371,31 +418,46 @@ func displayStats(stats *SystemStats, formatter *output.OutputFormatter, userInt
 					platformsStr = platformsStr[:17] + "..."
 				}
 				
+				executable := provider.Executable
+				if executable == "" {
+					executable = "(none)"
+				}
+				
 				rows = append(rows, []string{
 					provider.DisplayName,
 					status,
 					fmt.Sprintf("%d", provider.Priority),
 					actionsStr,
 					platformsStr,
+					executable,
 				})
 			}
 			
 			userInterface.ShowTable(headers, rows)
 		}
 	} else {
-		// Simple provider list
+		// Simple provider list - ONLY show available providers (Requirement 13.1)
 		fmt.Println("Available Providers:")
+		availableCount := 0
 		for _, provider := range stats.Providers {
 			if provider.Available {
 				fmt.Printf("  %s (%s) - %d actions\n", 
 					formatter.FormatProviderName(provider.Name), 
 					provider.Type, 
 					len(provider.Actions))
+				availableCount++
 			}
 		}
 		
+		if availableCount == 0 {
+			fmt.Println("  No providers are currently available on this system.")
+			fmt.Println("  Use --verbose to see unavailable providers and reasons.")
+		}
+		
+		// Only show unavailable providers in verbose mode
 		if verbose {
 			fmt.Println("\nUnavailable Providers:")
+			unavailableCount := 0
 			for _, provider := range stats.Providers {
 				if !provider.Available {
 					reason := "not available"
@@ -403,7 +465,12 @@ func displayStats(stats *SystemStats, formatter *output.OutputFormatter, userInt
 						reason = provider.Error
 					}
 					fmt.Printf("  %s (%s) - %s\n", provider.Name, provider.Type, reason)
+					unavailableCount++
 				}
+			}
+			
+			if unavailableCount == 0 {
+				fmt.Println("  All providers are available on this system.")
 			}
 		}
 	}
@@ -487,8 +554,21 @@ func getOSVersion() string {
 }
 
 func supportsPlatform(platforms []string, currentPlatform string) bool {
+	// Map Go runtime platform names to our provider platform names
+	platformMap := map[string]string{
+		"darwin":  "macos",
+		"linux":   "linux", 
+		"windows": "windows",
+	}
+	
+	// Get the provider platform name for the current system platform
+	providerPlatform := platformMap[currentPlatform]
+	if providerPlatform == "" {
+		providerPlatform = currentPlatform // fallback to original name
+	}
+	
 	for _, platform := range platforms {
-		if platform == currentPlatform {
+		if platform == currentPlatform || platform == providerPlatform {
 			return true
 		}
 	}

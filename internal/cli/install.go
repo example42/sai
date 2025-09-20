@@ -13,6 +13,7 @@ import (
 	"sai/internal/provider"
 	"sai/internal/saidata"
 	"sai/internal/executor"
+	"sai/internal/template"
 	"sai/internal/validation"
 	"sai/internal/ui"
 )
@@ -66,36 +67,8 @@ func executeInstallCommand(software string) error {
 		Timeout:   config.Timeout,
 	}
 
-	// Handle provider selection if multiple providers are available
-	if flags.Provider == "" && !flags.Yes {
-		providerOptions, err := actionManager.GetAvailableProviders(software, "install")
-		if err != nil {
-			formatter.ShowError(fmt.Errorf("failed to get available providers: %w", err))
-			return err
-		}
-
-		// If multiple providers available, show selection (Requirement 1.3)
-		if len(providerOptions) > 1 {
-			uiOptions := make([]*ui.ProviderOption, len(providerOptions))
-			for i, option := range providerOptions {
-				uiOptions[i] = &ui.ProviderOption{
-					Name:        option.Provider.Provider.Name,
-					PackageName: option.PackageName,
-					Version:     option.Version,
-					IsInstalled: option.IsInstalled,
-					Description: option.Provider.Provider.Description,
-				}
-			}
-
-			selectedOption, err := userInterface.ShowProviderSelection(software, uiOptions)
-			if err != nil {
-				formatter.ShowError(fmt.Errorf("provider selection failed: %w", err))
-				return err
-			}
-
-			options.Provider = selectedOption.Name
-		}
-	}
+	// Provider selection is now handled by the Action Manager (Requirements 15.1, 15.3, 15.4)
+	// The Action Manager will show commands instead of package details for system-changing operations
 
 	// Show progress
 	if !flags.Quiet {
@@ -185,10 +158,22 @@ func createManagers(cfg *config.Config, formatter *output.OutputFormatter) (inte
 		return nil, nil, fmt.Errorf("failed to create provider manager: %w", err)
 	}
 
-	// Create saidata manager
-	saidataManager := saidata.NewManager("docs/saidata_samples")
+	// Create saidata manager with automatic bootstrap
+	var saidataManager interfaces.SaidataManager
+	
+	// For development/testing, check if docs/saidata_samples exists and use it
+	if _, err := os.Stat("docs/saidata_samples"); err == nil {
+		saidataManager = saidata.NewManager("docs/saidata_samples")
+	} else {
+		// Use bootstrap system for production
+		manager, err := saidata.NewManagerWithBootstrap(cfg.Repository.GitURL, cfg.Repository.ZipFallbackURL)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize saidata manager: %w", err)
+		}
+		saidataManager = manager
+	}
 
-	// Create logger (placeholder - would need actual implementation)
+	// Create logger (using mock for now)
 	logger := &MockLogger{}
 
 	// Create validator
@@ -197,8 +182,8 @@ func createManagers(cfg *config.Config, formatter *output.OutputFormatter) (inte
 	// Create command executor
 	commandExecutor := executor.NewCommandExecutor(logger, resourceValidator)
 
-	// Create template engine (placeholder - would need actual implementation)
-	templateEngine := &MockTemplateEngine{}
+	// Create template engine with real implementation
+	templateEngine := template.NewTemplateEngine(nil, nil)
 
 	// Create generic executor
 	genericExecutor := executor.NewGenericExecutor(
@@ -208,8 +193,7 @@ func createManagers(cfg *config.Config, formatter *output.OutputFormatter) (inte
 		resourceValidator,
 	)
 
-	// Create output formatter and UI
-	formatter := output.NewOutputFormatter(cfg, verbose, quiet, jsonOutput)
+	// Create UI using the provided formatter
 	userInterface := ui.NewUserInterface(cfg, formatter)
 
 	// Create action manager
@@ -221,10 +205,8 @@ func createManagers(cfg *config.Config, formatter *output.OutputFormatter) (inte
 		cfg,
 		userInterface,
 		formatter,
+		logger,
 	)
-
-	// Create user interface
-	userInterface := ui.NewUserInterface(cfg, formatter)
 
 	return actionManager, userInterface, nil
 }

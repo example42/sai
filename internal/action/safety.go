@@ -31,7 +31,7 @@ func (sm *SafetyManager) CheckActionSafety(action, software string, provider *ty
 	}
 
 	// Check 1: Validate resources exist (Requirement 10.5)
-	resourceCheck := sm.checkResourcesExist(saidata)
+	resourceCheck := sm.checkResourcesExist(action, saidata)
 	result.Checks = append(result.Checks, resourceCheck)
 	if !resourceCheck.Passed {
 		result.Safe = false
@@ -69,12 +69,22 @@ func (sm *SafetyManager) CheckActionSafety(action, software string, provider *ty
 }
 
 // checkResourcesExist validates that required resources exist on the system
-func (sm *SafetyManager) checkResourcesExist(saidata *types.SoftwareData) SafetyCheck {
+func (sm *SafetyManager) checkResourcesExist(action string, saidata *types.SoftwareData) SafetyCheck {
 	check := SafetyCheck{
 		Name:        "Resource Existence",
 		Description: "Verify that required files, services, and commands exist",
 		Passed:      true,
 		Messages:    []string{},
+	}
+
+	// For install actions, we don't require resources to exist beforehand
+	// The install action will create them
+	installActions := []string{"install", "upgrade", "search", "info", "version"}
+	for _, installAction := range installActions {
+		if action == installAction {
+			check.Messages = append(check.Messages, fmt.Sprintf("Skipping resource validation for %s action", action))
+			return check
+		}
 	}
 
 	validationResult, err := sm.validator.ValidateResources(saidata)

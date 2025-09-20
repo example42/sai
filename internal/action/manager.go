@@ -3,6 +3,7 @@ package action
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -112,6 +113,11 @@ func (am *ActionManager) ExecuteAction(ctx context.Context, action string, softw
 		return am.buildErrorResult(action, software, "", err, startTime), err
 	}
 
+	// Handle automatic execution across all providers for information-only commands (Requirements 15.2, 15.4)
+	if selectedProvider == nil && am.confirmationManager.ShouldExecuteAcrossProviders(action) {
+		return am.executeAcrossProviders(ctx, action, software, providerOptions, options, saidata, startTime)
+	}
+
 	// Step 6: Perform comprehensive safety checks (Requirement 10.5)
 	safetyResult, err := am.safetyManager.CheckActionSafety(action, software, selectedProvider, saidata)
 	if err != nil {
@@ -218,7 +224,7 @@ func (am *ActionManager) ExecuteAction(ctx context.Context, action string, softw
 			recoveryCtx := errors.BuildRecoveryContext(action, software, selectedProvider, saidata, err)
 			
 			// Attempt recovery
-			recoveryResult, recoveryErr := am.recoveryManager.AttemptRecovery(ctx, recoveryCtx)
+			recoveryResult, _ := am.recoveryManager.AttemptRecovery(ctx, recoveryCtx)
 			
 			if recoveryResult.Success {
 				am.formatter.ShowSuccess(fmt.Sprintf("Recovery successful using strategy: %s", recoveryResult.RecoveryStrategy))
@@ -392,8 +398,17 @@ func (am *ActionManager) GetAvailableProviders(software string, action string) (
 						Priority:    am.getProviderPriority(provider),
 					}
 					options = append(options, option)
+				} else {
+					// Log why this provider was rejected
+					am.formatter.ShowDebug(fmt.Sprintf("Provider %s rejected: action %s cannot be executed", provider.Provider.Name, action))
 				}
+			} else {
+				// Log saidata resolution failure
+				am.formatter.ShowDebug(fmt.Sprintf("Provider %s rejected: failed to resolve saidata for %s: %v", provider.Provider.Name, software, err))
 			}
+		} else {
+			// Log provider availability issue
+			am.formatter.ShowDebug(fmt.Sprintf("Provider %s not available on this system", provider.Provider.Name))
 		}
 	}
 
@@ -477,8 +492,37 @@ func (am *ActionManager) SearchAcrossProviders(software string) ([]*interfaces.S
 
 // GetSoftwareInfo gets information about software from all providers (Requirement 2.4)
 func (am *ActionManager) GetSoftwareInfo(software string) ([]*interfaces.SoftwareInfo, error) {
-	providers := am.providerManager.GetAvailableProviders()
 	var results []*interfaces.SoftwareInfo
+
+	// First, try to get information from saidata
+	saidata, err := am.ResolveSoftwareData(software)
+	if err == nil && !saidata.IsGenerated {
+		// We have actual saidata (not generated defaults), use it as a source
+		homepage := ""
+		if saidata.Metadata.URLs != nil {
+			homepage = saidata.Metadata.URLs.Website
+		}
+		
+		license := saidata.Metadata.License
+		if license == "" {
+			license = "unknown"
+		}
+
+		info := &interfaces.SoftwareInfo{
+			Software:     software,
+			Provider:     "saidata",
+			PackageName:  software,
+			Version:      saidata.Metadata.Version,
+			Description:  saidata.Metadata.Description,
+			Homepage:     homepage,
+			License:      license,
+			Dependencies: []string{}, // Could extract from requirements if available
+		}
+		results = append(results, info)
+	}
+
+	// Then get information from providers that support info action
+	providers := am.providerManager.GetAvailableProviders()
 	ctx := context.Background()
 
 	for _, provider := range providers {
@@ -492,10 +536,12 @@ func (am *ActionManager) GetSoftwareInfo(software string) ([]*interfaces.Softwar
 			continue
 		}
 
-		// Get saidata for template resolution
-		saidata, err := am.ResolveSoftwareData(software)
-		if err != nil {
-			continue // Skip this provider if we can't resolve saidata
+		// Get saidata for template resolution (reuse if already loaded)
+		if saidata == nil {
+			saidata, err = am.ResolveSoftwareData(software)
+			if err != nil {
+				continue // Skip this provider if we can't resolve saidata
+			}
 		}
 
 		// Check if info action can be executed
@@ -537,6 +583,7 @@ func (am *ActionManager) GetSoftwareInfo(software string) ([]*interfaces.Softwar
 func (am *ActionManager) GetSoftwareVersions(software string) ([]*interfaces.VersionInfo, error) {
 	providers := am.providerManager.GetAvailableProviders()
 	var results []*interfaces.VersionInfo
+	var errors []error
 	ctx := context.Background()
 
 	for _, provider := range providers {
@@ -553,6 +600,7 @@ func (am *ActionManager) GetSoftwareVersions(software string) ([]*interfaces.Ver
 		// Get saidata for template resolution
 		saidata, err := am.ResolveSoftwareData(software)
 		if err != nil {
+			errors = append(errors, fmt.Errorf("failed to resolve saidata for %s with provider %s: %w", software, provider.Provider.Name, err))
 			continue // Skip this provider if we can't resolve saidata
 		}
 
@@ -561,7 +609,20 @@ func (am *ActionManager) GetSoftwareVersions(software string) ([]*interfaces.Ver
 			continue
 		}
 
-		// Execute version command
+		// Check installation status first
+		isInstalled := am.isPackageInstalled(provider, software)
+		
+		// Create version info with basic information
+		version := &interfaces.VersionInfo{
+			Software:      software,
+			Provider:      provider.Provider.Name,
+			PackageName:   am.getPackageName(provider, software),
+			Version:       "Not Installed",
+			IsInstalled:   isInstalled,
+			LatestVersion: "unknown",
+		}
+
+		// Only try to get version if package is installed or if we want to check availability
 		executeOptions := interfaces.ExecuteOptions{
 			DryRun:  false,
 			Verbose: false,
@@ -570,26 +631,35 @@ func (am *ActionManager) GetSoftwareVersions(software string) ([]*interfaces.Ver
 
 		executionResult, err := am.executor.Execute(ctx, provider, "version", software, saidata, executeOptions)
 		
-		// Check installation status
-		isInstalled := am.isPackageInstalled(provider, software)
-		
-		// Parse version results (simplified - in real implementation would parse provider-specific output)
-		version := &interfaces.VersionInfo{
-			Software:      software,
-			Provider:      provider.Provider.Name,
-			PackageName:   am.getPackageName(provider, software),
-			Version:       "unknown", // Would parse from output
-			IsInstalled:   isInstalled,
-			LatestVersion: "unknown", // Would parse from output
-		}
-
-		// If command succeeded, try to parse version from output
-		if err == nil && executionResult.Success {
-			// In a real implementation, this would parse the actual version from output
-			version.Version = "available"
+		if err != nil {
+			// Add error but still include the version info to show the provider exists
+			errors = append(errors, fmt.Errorf("failed to get version for %s from %s: %w", software, provider.Provider.Name, err))
+			version.Version = "Error"
+		} else if executionResult.Success {
+			// Parse version from output based on provider type
+			parsedVersion := am.parseVersionOutput(provider.Provider.Name, executionResult.Output)
+			if parsedVersion != "" {
+				version.Version = parsedVersion
+			} else if isInstalled {
+				version.Version = "Installed"
+			} else {
+				version.Version = "Available"
+			}
+		} else {
+			// Command failed but no error - likely not installed or not available
+			if isInstalled {
+				version.Version = "Installed (version unknown)"
+			} else {
+				version.Version = "Not Available"
+			}
 		}
 
 		results = append(results, version)
+	}
+
+	// If we have no results but have errors, return the first error
+	if len(results) == 0 && len(errors) > 0 {
+		return nil, fmt.Errorf("failed to get version information: %w", errors[0])
 	}
 
 	return results, nil
@@ -660,7 +730,9 @@ func (am *ActionManager) setupRepository(repo types.Repository) error {
 // Helper methods
 
 // selectProvider handles provider selection with user interaction (Requirement 1.3)
+// Updated to support automatic execution for information-only commands (Requirements 15.2, 15.4)
 func (am *ActionManager) selectProvider(software, action string, options []*interfaces.ProviderOption, actionOptions interfaces.ActionOptions) (*types.ProviderData, error) {
+
 	// If specific provider requested, find and validate it
 	if actionOptions.Provider != "" {
 		for _, option := range options {
@@ -686,8 +758,48 @@ func (am *ActionManager) selectProvider(software, action string, options []*inte
 		return options[0].Provider, nil
 	}
 
+	// For information-only commands, don't prompt for provider selection - execute across all providers
+	// This implements Requirements 15.2 and 15.4
+	if am.confirmationManager.ShouldExecuteAcrossProviders(action) {
+		// Return nil to signal that we should execute across all providers
+		return nil, nil
+	}
+
+	// For system-changing operations, show provider selection with commands
+	// Generate command previews for each provider to show in selection UI (Requirement 15.1, 15.3)
+	commands := make(map[string][]string)
+	
+	for _, option := range options {
+		// Generate a preview command based on provider and action
+		// This is a simplified approach that shows the expected command format
+		providerName := option.Provider.Provider.Name
+		packageName := option.PackageName
+		
+		var previewCommand string
+		switch action {
+		case "install":
+			previewCommand = am.generateInstallCommand(providerName, packageName)
+		case "uninstall":
+			previewCommand = am.generateUninstallCommand(providerName, packageName)
+		case "upgrade":
+			previewCommand = am.generateUpgradeCommand(providerName, packageName)
+		case "start":
+			previewCommand = am.generateStartCommand(providerName, packageName)
+		case "stop":
+			previewCommand = am.generateStopCommand(providerName, packageName)
+		case "restart":
+			previewCommand = am.generateRestartCommand(providerName, packageName)
+		default:
+			previewCommand = fmt.Sprintf("%s %s %s", providerName, action, packageName)
+		}
+		
+		if previewCommand != "" {
+			commands[providerName] = []string{previewCommand}
+		}
+	}
+
 	// Multiple providers available - use confirmation manager for selection (Requirement 1.3)
-	selectedOption, err := am.confirmationManager.ConfirmProviderSelection(software, options)
+	selectedOption, err := am.confirmationManager.ConfirmProviderSelection(software, options, action, commands)
 	if err != nil {
 		return nil, fmt.Errorf("provider selection failed: %w", err)
 	}
@@ -772,13 +884,336 @@ func (am *ActionManager) getPackageName(provider *types.ProviderData, software s
 	return software
 }
 
+// Helper methods to generate command previews for provider selection (Requirement 15.3)
+
+func (am *ActionManager) generateInstallCommand(provider, packageName string) string {
+	switch provider {
+	case "apt":
+		return fmt.Sprintf("apt install %s", packageName)
+	case "brew":
+		return fmt.Sprintf("brew install %s", packageName)
+	case "yum":
+		return fmt.Sprintf("yum install %s", packageName)
+	case "dnf":
+		return fmt.Sprintf("dnf install %s", packageName)
+	case "pacman":
+		return fmt.Sprintf("pacman -S %s", packageName)
+	case "docker":
+		return fmt.Sprintf("docker pull %s", packageName)
+	case "npm":
+		return fmt.Sprintf("npm install -g %s", packageName)
+	case "pip", "pypi":
+		return fmt.Sprintf("pip install %s", packageName)
+	case "gem":
+		return fmt.Sprintf("gem install %s", packageName)
+	case "cargo":
+		return fmt.Sprintf("cargo install %s", packageName)
+	case "go":
+		return fmt.Sprintf("go install %s", packageName)
+	case "helm":
+		return fmt.Sprintf("helm install %s", packageName)
+	default:
+		return fmt.Sprintf("%s install %s", provider, packageName)
+	}
+}
+
+func (am *ActionManager) generateUninstallCommand(provider, packageName string) string {
+	switch provider {
+	case "apt":
+		return fmt.Sprintf("apt remove %s", packageName)
+	case "brew":
+		return fmt.Sprintf("brew uninstall %s", packageName)
+	case "yum":
+		return fmt.Sprintf("yum remove %s", packageName)
+	case "dnf":
+		return fmt.Sprintf("dnf remove %s", packageName)
+	case "pacman":
+		return fmt.Sprintf("pacman -R %s", packageName)
+	case "docker":
+		return fmt.Sprintf("docker rmi %s", packageName)
+	case "npm":
+		return fmt.Sprintf("npm uninstall -g %s", packageName)
+	case "pip", "pypi":
+		return fmt.Sprintf("pip uninstall %s", packageName)
+	case "gem":
+		return fmt.Sprintf("gem uninstall %s", packageName)
+	case "cargo":
+		return fmt.Sprintf("cargo uninstall %s", packageName)
+	case "helm":
+		return fmt.Sprintf("helm uninstall %s", packageName)
+	default:
+		return fmt.Sprintf("%s uninstall %s", provider, packageName)
+	}
+}
+
+func (am *ActionManager) generateUpgradeCommand(provider, packageName string) string {
+	switch provider {
+	case "apt":
+		return fmt.Sprintf("apt upgrade %s", packageName)
+	case "brew":
+		return fmt.Sprintf("brew upgrade %s", packageName)
+	case "yum":
+		return fmt.Sprintf("yum update %s", packageName)
+	case "dnf":
+		return fmt.Sprintf("dnf upgrade %s", packageName)
+	case "pacman":
+		return fmt.Sprintf("pacman -Syu %s", packageName)
+	case "docker":
+		return fmt.Sprintf("docker pull %s", packageName)
+	case "npm":
+		return fmt.Sprintf("npm update -g %s", packageName)
+	case "pip", "pypi":
+		return fmt.Sprintf("pip install --upgrade %s", packageName)
+	case "gem":
+		return fmt.Sprintf("gem update %s", packageName)
+	case "cargo":
+		return fmt.Sprintf("cargo install %s", packageName)
+	case "helm":
+		return fmt.Sprintf("helm upgrade %s", packageName)
+	default:
+		return fmt.Sprintf("%s upgrade %s", provider, packageName)
+	}
+}
+
+func (am *ActionManager) generateStartCommand(provider, packageName string) string {
+	// Service commands are typically system-level, not provider-specific
+	return fmt.Sprintf("systemctl start %s", packageName)
+}
+
+func (am *ActionManager) generateStopCommand(provider, packageName string) string {
+	return fmt.Sprintf("systemctl stop %s", packageName)
+}
+
+func (am *ActionManager) generateRestartCommand(provider, packageName string) string {
+	return fmt.Sprintf("systemctl restart %s", packageName)
+}
+
+// executeAcrossProviders executes an action across all available providers for information-only commands
+// This implements Requirements 15.2 and 15.4 - automatic execution without provider selection prompts
+func (am *ActionManager) executeAcrossProviders(ctx context.Context, action, software string, providerOptions []*interfaces.ProviderOption, actionOptions interfaces.ActionOptions, saidata *types.SoftwareData, startTime time.Time) (*interfaces.ActionResult, error) {
+	var allResults []*interfaces.ExecutionResult
+	var allCommands []string
+	var allOutput []string
+	var hasErrors bool
+	var lastError error
+
+	am.formatter.ShowInfo(fmt.Sprintf("Executing %s for %s across all available providers:", action, software))
+	fmt.Println()
+
+	executeOptions := interfaces.ExecuteOptions{
+		DryRun:    actionOptions.DryRun,
+		Verbose:   actionOptions.Verbose,
+		Timeout:   actionOptions.Timeout,
+		Variables: actionOptions.Variables,
+	}
+
+	for _, option := range providerOptions {
+		provider := option.Provider
+		
+		// Show compact provider header (Requirement 15.5)
+		providerHeader := am.formatter.FormatProviderName(provider.Provider.Name)
+		fmt.Printf("%s:\n", providerHeader)
+
+		// Execute the action for this provider
+		var executionResult *interfaces.ExecutionResult
+		var err error
+
+		if actionOptions.DryRun {
+			executionResult, err = am.executor.DryRun(ctx, provider, action, software, saidata, executeOptions)
+		} else {
+			executionResult, err = am.executor.Execute(ctx, provider, action, software, saidata, executeOptions)
+		}
+
+		if err != nil {
+			hasErrors = true
+			lastError = err
+			am.formatter.ShowError(fmt.Errorf("  %s failed: %v", provider.Provider.Name, err))
+		} else if executionResult != nil {
+			allResults = append(allResults, executionResult)
+			allCommands = append(allCommands, executionResult.Commands...)
+			
+			// Show compact output format (Requirements 15.3, 15.5)
+			if len(executionResult.Commands) > 0 {
+				for _, cmd := range executionResult.Commands {
+					fmt.Printf("  Command: %s\n", cmd)
+				}
+			}
+			
+			if executionResult.Output != "" && !am.formatter.IsQuietMode() {
+				// Show output with proper formatting
+				outputLines := strings.Split(strings.TrimSpace(executionResult.Output), "\n")
+				for _, line := range outputLines {
+					if line != "" {
+						fmt.Printf("  %s\n", line)
+					}
+				}
+				allOutput = append(allOutput, executionResult.Output)
+			}
+			
+			// Show exit status
+			if executionResult.ExitCode == 0 {
+				am.formatter.ShowSuccess("  ✓ Success")
+			} else {
+				am.formatter.ShowError(fmt.Errorf("  ✗ Failed (exit code: %d)", executionResult.ExitCode))
+				hasErrors = true
+			}
+		}
+		
+		fmt.Println() // Add spacing between providers
+	}
+
+	// Build combined result
+	result := &interfaces.ActionResult{
+		Action:               action,
+		Software:             software,
+		Provider:             "multiple", // Indicate multiple providers were used
+		Success:              !hasErrors,
+		Duration:             time.Since(startTime),
+		Commands:             allCommands,
+		Output:               strings.Join(allOutput, "\n"),
+		ExitCode:             0,
+		RequiredConfirmation: false, // Information-only commands don't require confirmation
+	}
+
+	if hasErrors {
+		result.Success = false
+		result.Error = lastError
+		result.ExitCode = 1
+	}
+
+	return result, lastError
+}
+
+// parseVersionOutput parses version information from provider command output
+func (am *ActionManager) parseVersionOutput(providerName, output string) string {
+	if output == "" {
+		return ""
+	}
+	
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	
+	switch providerName {
+	case "apt":
+		// APT output format: "package version"
+		// Example: "nginx 1.18.0-6ubuntu14.4"
+		for _, line := range lines {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				return fields[1] // Return version part
+			}
+		}
+		
+	case "brew":
+		// Homebrew output format: "package version"
+		// Example: "nginx 1.21.6_1"
+		for _, line := range lines {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				return fields[1] // Return version part
+			}
+		}
+		
+	case "docker":
+		// Docker doesn't have traditional versions, but we can show image tag
+		// This would be handled differently in a real implementation
+		return "container"
+		
+	case "yum", "dnf":
+		// YUM/DNF output format similar to APT
+		for _, line := range lines {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				return fields[1]
+			}
+		}
+		
+	case "pacman":
+		// Pacman output format: "package version-release"
+		for _, line := range lines {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				return fields[1]
+			}
+		}
+		
+	default:
+		// Generic parsing: try to extract version-like strings
+		for _, line := range lines {
+			// Look for version patterns like "1.2.3", "v1.2.3", etc.
+			versionRegex := regexp.MustCompile(`\b(?:v)?(\d+(?:\.\d+)*(?:[-._]\w+)*)\b`)
+			matches := versionRegex.FindStringSubmatch(line)
+			if len(matches) > 1 {
+				return matches[1]
+			}
+		}
+	}
+	
+	// If we can't parse a specific version, return the first line (trimmed)
+	if len(lines) > 0 {
+		firstLine := strings.TrimSpace(lines[0])
+		if len(firstLine) > 50 {
+			return firstLine[:47] + "..."
+		}
+		return firstLine
+	}
+	
+	return ""
+}
+
 func (am *ActionManager) getProviderVersion(provider *types.ProviderData) string {
 	// TODO: Get actual provider version by executing version command
 	return "unknown"
 }
 
 func (am *ActionManager) isPackageInstalled(provider *types.ProviderData, software string) bool {
-	// TODO: Check if package is actually installed by executing check command
+	// Check if provider has a detection command or list action
+	ctx := context.Background()
+	
+	// Try detection command first if available
+	if action, hasAction := provider.Actions["version"]; hasAction && action.Detection != "" {
+		saidata, err := am.ResolveSoftwareData(software)
+		if err != nil {
+			return false
+		}
+		
+		// Render detection command template
+		detectionCmd, err := am.executor.RenderTemplate(action.Detection, saidata, provider)
+		if err != nil {
+			return false
+		}
+		
+		// Execute detection command
+		result, err := am.executor.ExecuteCommand(ctx, detectionCmd, interfaces.CommandOptions{
+			Timeout: 10 * time.Second,
+			Verbose: false,
+		})
+		
+		// If command succeeds (exit code 0), package is installed
+		return err == nil && result.ExitCode == 0
+	}
+	
+	// Try list action as fallback
+	if _, hasListAction := provider.Actions["list"]; hasListAction {
+		saidata, err := am.ResolveSoftwareData(software)
+		if err != nil {
+			return false
+		}
+		
+		if am.executor.CanExecute(provider, "list", software, saidata) {
+			executeOptions := interfaces.ExecuteOptions{
+				DryRun:  false,
+				Verbose: false,
+				Timeout: 10 * time.Second,
+			}
+			
+			result, err := am.executor.Execute(ctx, provider, "list", software, saidata, executeOptions)
+			return err == nil && result.Success && result.ExitCode == 0
+		}
+	}
+	
 	return false
 }
 
@@ -889,6 +1324,11 @@ func (am *ActionManager) ValidateActionWithRecovery(action string, software stri
 		Error:       err,
 		Suggestions: suggestions,
 	}, err
+}
+
+// GetProviderManager returns the provider manager for stats and debugging
+func (am *ActionManager) GetProviderManager() interfaces.ProviderManager {
+	return am.providerManager
 }
 
 // Ensure ActionManager implements the interface

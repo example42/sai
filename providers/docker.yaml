@@ -85,3 +85,8 @@ actions:
   list:
     description: "List Docker containers"
     template: "docker ps -a | grep {{sai_container(0, 'name', 'docker')}}"
+
+  version:
+    description: "Show Docker container image version"
+    template: "docker inspect {{sai_container(0, 'name', 'docker')}} --format='{{.Config.Image}}' 2>/dev/null || echo 'Not installed'"
+    detection: "docker ps -a | grep -q {{sai_container(0, 'name', 'docker')}}"

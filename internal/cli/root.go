@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"sai/internal/config"
+	"sai/internal/debug"
 )
 
 var (
@@ -18,9 +20,13 @@ var (
 	yes          bool
 	quiet        bool
 	jsonOutput   bool
+	debugFlag    bool
 	
 	// Global configuration instance
 	globalConfig *config.Config
+	
+	// Global debug manager instance
+	globalDebugManager *debug.DebugManager
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -60,7 +66,15 @@ Examples:
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() error {
-	return rootCmd.Execute()
+	err := rootCmd.Execute()
+	
+	// Show debug metrics and cleanup if debug mode was enabled
+	if globalDebugManager != nil && globalDebugManager.IsEnabled() {
+		globalDebugManager.ShowPerformanceMetrics()
+		globalDebugManager.Close()
+	}
+	
+	return err
 }
 
 func init() {
@@ -81,6 +95,8 @@ func init() {
 		"suppress non-essential output (minimal output mode)")
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, 
 		"output results in JSON format for programmatic consumption")
+	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, 
+		"enable comprehensive debug logging for troubleshooting")
 
 	// Flag validation and mutual exclusivity
 	rootCmd.MarkFlagsMutuallyExclusive("verbose", "quiet")
@@ -128,14 +144,37 @@ func initConfig() {
 
 // initializeConfig loads and validates the configuration
 func initializeConfig() error {
+	// Initialize debug manager first if debug flag is set
+	globalDebugManager = debug.NewDebugManager(debugFlag)
+	
+	// Set the global debug manager for other components to use
+	debug.SetGlobalDebugManager(globalDebugManager)
+	
+	// Log configuration loading start
+	if debugFlag {
+		globalDebugManager.LogConfigurationLoading(cfgFile, false, nil, nil, 0, nil)
+	}
+	
 	var err error
+	startTime := time.Now()
 	globalConfig, err = config.LoadConfig(cfgFile)
+	loadTime := time.Since(startTime)
+	
 	if err != nil {
+		if debugFlag {
+			globalDebugManager.LogConfigurationLoading(cfgFile, false, nil, getEnvOverrides(), loadTime, err)
+		}
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	// Apply flag overrides to configuration
 	applyFlagOverrides()
+
+	// Log successful configuration loading
+	if debugFlag {
+		configData := configToMap(globalConfig)
+		globalDebugManager.LogConfigurationLoading(cfgFile, true, configData, getEnvOverrides(), loadTime, nil)
+	}
 
 	// Set up logging based on configuration and flags
 	logLevel := globalConfig.LogLevel
@@ -179,6 +218,11 @@ func GetGlobalConfig() *config.Config {
 	return globalConfig
 }
 
+// GetGlobalDebugManager returns the global debug manager instance
+func GetGlobalDebugManager() *debug.DebugManager {
+	return globalDebugManager
+}
+
 // GetGlobalFlags returns the current global flag values
 func GetGlobalFlags() GlobalFlags {
 	return GlobalFlags{
@@ -189,6 +233,7 @@ func GetGlobalFlags() GlobalFlags {
 		Yes:        yes,
 		Quiet:      quiet,
 		JSONOutput: jsonOutput,
+		Debug:      debugFlag,
 	}
 }
 
@@ -201,6 +246,7 @@ type GlobalFlags struct {
 	Yes        bool
 	Quiet      bool
 	JSONOutput bool
+	Debug      bool
 }
 
 // ValidateFlags performs validation on flag combinations and values
@@ -269,4 +315,36 @@ func SetupCompletion() {
 	rootCmd.RegisterFlagCompletionFunc("config", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return []string{"yaml", "yml"}, cobra.ShellCompDirectiveFilterFileExt
 	})
+}
+
+// getEnvOverrides returns environment variable overrides for debugging
+func getEnvOverrides() map[string]string {
+	overrides := make(map[string]string)
+	envVars := []string{
+		"SAI_SAIDATA_REPOSITORY", "SAI_DEFAULT_PROVIDER", "SAI_LOG_LEVEL",
+		"SAI_CACHE_DIR", "SAI_TIMEOUT", "SAI_OFFLINE_MODE", "SAI_AUTO_SETUP",
+	}
+	
+	for _, envVar := range envVars {
+		if value := os.Getenv(envVar); value != "" {
+			overrides[envVar] = value
+		}
+	}
+	
+	return overrides
+}
+
+// configToMap converts config struct to map for debugging
+func configToMap(cfg *config.Config) map[string]interface{} {
+	return map[string]interface{}{
+		"saidata_repository": cfg.SaidataRepository,
+		"default_provider":   cfg.DefaultProvider,
+		"provider_priority":  cfg.ProviderPriority,
+		"timeout":            cfg.Timeout.String(),
+		"cache_dir":          cfg.CacheDir,
+		"log_level":          cfg.LogLevel,
+		"confirmations":      cfg.Confirmations,
+		"output":             cfg.Output,
+		"repository":         cfg.Repository,
+	}
 }

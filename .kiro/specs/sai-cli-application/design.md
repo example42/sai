@@ -6,6 +6,8 @@ The SAI CLI application is designed as a modular Go application that provides a 
 
 The application uses a hierarchical saidata structure to define software metadata and provider-specific configurations, enabling automatic provider detection and cross-platform compatibility. The design emphasizes modularity, extensibility, and maintainability while providing a consistent user experience across different platforms.
 
+**Critical Design Focus**: This design addresses fundamental functionality issues where current SAI actions fail to execute properly. The core problems include broken template resolution, incorrect provider detection, missing saidata management, and inconsistent data structures. The design prioritizes fixing these core issues to ensure all SAI commands work correctly before adding new features.
+
 ### Dynamic Provider Architecture Benefits
 
 The key innovation of this design is the **dynamic provider system** where all provider logic is defined in YAML files rather than hardcoded Go implementations. This approach provides several advantages:
@@ -491,6 +493,118 @@ type Repository struct {
 3. **Validation**: Verify repository integrity and schema compliance
 4. **Software Repository Setup**: Automatically configure package manager repositories based on saidata definitions
 5. **Offline Support**: Graceful degradation to cached data when network unavailable
+
+### Automatic Saidata Management (Requirement 11)
+
+**Design Decision**: Implement automatic saidata repository management that downloads and maintains the saidata repository without user intervention.
+
+**Rationale**: Users should not need to manually manage saidata repositories. The system should automatically handle initial setup and ongoing updates.
+
+```go
+type SaidataBootstrap interface {
+    CheckFirstRun() bool
+    ShowWelcomeMessage() error
+    DownloadSaidataRepository() error
+    GetSaidataPath() string
+    ValidateInstallation() error
+}
+
+type SaidataInstaller struct {
+    isRoot      bool
+    installPath string
+    gitURL      string
+    zipFallback string
+}
+
+func (si *SaidataInstaller) GetSaidataPath() string {
+    if si.isRoot {
+        // Root installation: /etc/sai/saidata (Linux/macOS) or equivalent on Windows
+        return si.getSystemPath()
+    }
+    // User installation: $HOME/.sai/saidata
+    return filepath.Join(os.Getenv("HOME"), ".sai", "saidata")
+}
+
+func (si *SaidataInstaller) DownloadSaidataRepository() error {
+    // Try Git first, fallback to zip
+    if err := si.gitClone(); err != nil {
+        return si.zipDownload()
+    }
+    return nil
+}
+```
+
+### Debug System Architecture (Requirement 12)
+
+**Design Decision**: Implement a comprehensive debug system that provides detailed information about all internal operations.
+
+**Rationale**: When SAI actions fail, users need detailed information to understand what went wrong and how to fix it.
+
+```go
+type DebugManager interface {
+    EnableDebugMode()
+    LogProviderDetection(providers []*Provider, available []*Provider)
+    LogTemplateResolution(template string, variables map[string]interface{}, result string)
+    LogCommandExecution(command string, provider string, duration time.Duration, exitCode int)
+    LogConfigurationLoading(configPath string, config *Config)
+    LogSaidataLoading(software string, saidata *SoftwareData, source string)
+    ShowPerformanceMetrics()
+}
+
+type DebugLogger struct {
+    enabled     bool
+    startTime   time.Time
+    operations  []DebugOperation
+    logger      *log.Logger
+}
+
+type DebugOperation struct {
+    Type      string
+    Message   string
+    Duration  time.Duration
+    Success   bool
+    Details   map[string]interface{}
+    Timestamp time.Time
+}
+```
+
+### Provider Detection Fix (Requirement 13)
+
+**Design Decision**: Fix provider detection to properly use the `executable` field from provider definitions and only show actually available providers.
+
+**Rationale**: Current provider detection is broken, showing providers like `apt` on macOS where they don't exist. This causes user confusion and system errors.
+
+```go
+type ProviderDetector interface {
+    DetectAvailableProviders(providers []*ProviderData) []*ProviderData
+    IsProviderAvailable(provider *ProviderData) bool
+    CheckExecutable(executable string) bool
+    GetSystemInfo() *SystemInfo
+    CacheDetectionResults(results map[string]bool)
+}
+
+type SystemInfo struct {
+    Platform     string // linux, darwin, windows
+    OS           string // ubuntu, centos, macos, windows
+    Version      string // 22.04, 8, 13.0, 11
+    Architecture string // amd64, arm64
+}
+
+func (pd *ProviderDetector) IsProviderAvailable(provider *ProviderData) bool {
+    // Check platform compatibility
+    if !pd.isPlatformSupported(provider.Provider.Platforms) {
+        return false
+    }
+    
+    // Check executable availability (this was broken before)
+    if provider.Provider.Executable != "" {
+        return pd.CheckExecutable(provider.Provider.Executable)
+    }
+    
+    // Fallback to provider name as executable
+    return pd.CheckExecutable(provider.Provider.Name)
+}
+```
 
 ## Data Models
 
@@ -1096,3 +1210,288 @@ func SetupTestEnvironment() *TestEnvironment
 - Cross-platform validation and testing
 - Documentation and user guides
 - Final integration testing and validation
+
+### Version Command Architecture (Requirement 14)
+
+**Design Decision**: Implement proper version command functionality that distinguishes between SAI's version and software version checking.
+
+**Rationale**: Users need to check both SAI's version and installed software versions. The current implementation is broken and doesn't properly execute version actions from providers.
+
+```go
+type VersionManager interface {
+    GetSAIVersion() string
+    GetSoftwareVersions(software string) ([]*SoftwareVersion, error)
+    ExecuteVersionAction(provider *Provider, software string) (*VersionResult, error)
+    FormatVersionOutput(versions []*SoftwareVersion) string
+}
+
+type SoftwareVersion struct {
+    Software    string
+    Provider    string
+    Version     string
+    IsInstalled bool
+    Error       error
+}
+
+type VersionResult struct {
+    Version   string
+    Installed bool
+    Output    string
+    Error     error
+}
+
+func (vm *VersionManager) GetSoftwareVersions(software string) ([]*SoftwareVersion, error) {
+    var versions []*SoftwareVersion
+    
+    providers := vm.providerManager.GetAvailableProviders()
+    for _, provider := range providers {
+        if provider.HasAction("version") {
+            result, err := vm.ExecuteVersionAction(provider, software)
+            versions = append(versions, &SoftwareVersion{
+                Software:    software,
+                Provider:    provider.Name,
+                Version:     result.Version,
+                IsInstalled: result.Installed,
+                Error:       err,
+            })
+        }
+    }
+    
+    return versions, nil
+}
+```
+
+### Output Formatting Improvements (Requirement 15)
+
+**Design Decision**: Redesign the provider selection and output system to show commands instead of package details, and automatically execute information-only commands.
+
+**Rationale**: Users need to see what commands will be executed rather than abstract package information. Information-only commands should execute immediately without prompting.
+
+```go
+type ImprovedOutputFormatter struct {
+    config      *OutputConfig
+    debugMode   bool
+}
+
+type ProviderOption struct {
+    Provider    *Provider
+    Command     string  // The actual command that will be executed
+    Status      string  // Available, Installed, etc.
+    CanExecute  bool    // Whether this command can actually be executed
+}
+
+func (f *ImprovedOutputFormatter) ShowProviderSelection(software string, action string, options []*ProviderOption) {
+    fmt.Printf("Multiple providers available for %s:\n\n", software)
+    
+    for i, option := range options {
+        fmt.Printf("%d. %s\n", i+1, f.FormatProviderName(option.Provider.Name))
+        fmt.Printf("   Command: %s\n", option.Command)
+        fmt.Printf("   Status:  %s\n\n", option.Status)
+    }
+}
+
+type ActionClassifier interface {
+    IsInformationOnly(action string) bool
+    RequiresUserSelection(action string) bool
+    ShouldExecuteAcrossProviders(action string) bool
+}
+
+func (ac *ActionClassifier) IsInformationOnly(action string) bool {
+    informationActions := []string{"search", "info", "version", "status", "logs", "config", "check"}
+    return contains(informationActions, action)
+}
+
+func (ac *ActionClassifier) ShouldExecuteAcrossProviders(action string) bool {
+    // Information-only commands should execute across all available providers
+    return ac.IsInformationOnly(action)
+}
+```
+
+### Core Functionality Fixes (Requirement 16)
+
+**Design Decision**: Implement comprehensive fixes for template resolution, provider loading, saidata parsing, and command execution to ensure all SAI actions work correctly.
+
+**Rationale**: This is the most critical requirement - nothing works currently, so we need to fix the fundamental systems.
+
+```go
+type CoreFunctionalityFixer interface {
+    FixTemplateResolution() error
+    FixProviderLoading() error
+    FixSaidataLoading() error
+    FixCommandExecution() error
+    ValidateAllSystems() error
+}
+
+// Template Resolution Fixes
+type FixedTemplateEngine struct {
+    functions map[string]interface{}
+    saidata   *SoftwareData
+    debug     bool
+}
+
+func (te *FixedTemplateEngine) RegisterSaidataFunctions() {
+    te.functions["sai_package"] = func(provider string, index ...int) string {
+        // Fix: Properly resolve package names from saidata
+        if te.saidata == nil {
+            return ""
+        }
+        
+        idx := 0
+        if len(index) > 0 {
+            idx = index[0]
+        }
+        
+        // Check provider-specific overrides first
+        if providerConfig, exists := te.saidata.Providers[provider]; exists {
+            if len(providerConfig.Packages) > idx {
+                return providerConfig.Packages[idx].PackageName // Use package_name field
+            }
+        }
+        
+        // Fallback to default packages
+        if len(te.saidata.Packages) > idx {
+            return te.saidata.Packages[idx].PackageName // Use package_name field
+        }
+        
+        return ""
+    }
+    
+    te.functions["sai_service"] = func(name string) string {
+        // Fix: Properly resolve service names
+        if te.saidata == nil {
+            return name // Fallback to provided name
+        }
+        
+        for _, service := range te.saidata.Services {
+            if service.Name == name {
+                return service.ServiceName
+            }
+        }
+        
+        return name // Fallback to provided name
+    }
+}
+
+// Provider Loading Fixes
+type FixedProviderLoader struct {
+    schemaValidator SchemaValidator
+    debug          bool
+}
+
+func (pl *FixedProviderLoader) LoadProvider(filepath string) (*ProviderData, error) {
+    // Fix: Proper YAML parsing with validation
+    data, err := ioutil.ReadFile(filepath)
+    if err != nil {
+        return nil, fmt.Errorf("failed to read provider file %s: %w", filepath, err)
+    }
+    
+    var provider ProviderData
+    if err := yaml.Unmarshal(data, &provider); err != nil {
+        return nil, fmt.Errorf("failed to parse provider YAML %s: %w", filepath, err)
+    }
+    
+    // Fix: Validate against schema
+    if err := pl.schemaValidator.ValidateProvider(&provider); err != nil {
+        return nil, fmt.Errorf("provider validation failed for %s: %w", filepath, err)
+    }
+    
+    return &provider, nil
+}
+
+// Command Execution Fixes
+type FixedCommandExecutor struct {
+    templateEngine TemplateEngine
+    debug         bool
+}
+
+func (ce *FixedCommandExecutor) ExecuteAction(provider *Provider, action string, software string, saidata *SoftwareData) (*Result, error) {
+    // Fix: Proper action resolution
+    actionDef, exists := provider.Data.Actions[action]
+    if !exists {
+        return nil, fmt.Errorf("action %s not found in provider %s", action, provider.Data.Provider.Name)
+    }
+    
+    // Fix: Template rendering with proper context
+    ce.templateEngine.SetContext(saidata)
+    command, err := ce.templateEngine.Render(actionDef.Template, map[string]interface{}{
+        "software": software,
+    })
+    if err != nil {
+        return nil, fmt.Errorf("template rendering failed: %w", err)
+    }
+    
+    // Fix: Actual command execution
+    return ce.executeCommand(command, actionDef.Timeout)
+}
+```
+
+### Package Name Consistency (Requirement 17)
+
+**Design Decision**: Standardize on `package_name` field in saidata and update all providers and schemas accordingly.
+
+**Rationale**: Inconsistent naming between `name` and `package_name` causes template resolution failures and confusion.
+
+```go
+// Updated Package structure
+type Package struct {
+    Name        string `yaml:"name"`         // Human-readable name
+    PackageName string `yaml:"package_name"` // Actual package name used by providers
+    Version     string `yaml:"version,omitempty"`
+    Description string `yaml:"description,omitempty"`
+    Homepage    string `yaml:"homepage,omitempty"`
+    License     string `yaml:"license,omitempty"`
+}
+
+// Schema updates required:
+// 1. Update saidata-0.2-schema.json to require package_name field
+// 2. Update all provider templates to use sai_package() with package_name
+// 3. Update all existing saidata samples to include package_name
+// 4. Update template functions to reference package_name consistently
+
+type SchemaUpdater interface {
+    UpdateSaidataSchema() error
+    UpdateProviderTemplates() error
+    UpdateSaidataSamples() error
+    ValidateConsistency() error
+}
+```
+
+### Error Handling and Recovery
+
+**Design Decision**: Implement comprehensive error handling that provides clear, actionable error messages for all failure scenarios.
+
+**Rationale**: When things fail (which they currently do), users need to understand what went wrong and how to fix it.
+
+```go
+type ErrorManager interface {
+    HandleTemplateError(err error, template string, context map[string]interface{}) error
+    HandleProviderError(err error, provider string, action string) error
+    HandleSaidataError(err error, software string, path string) error
+    HandleCommandError(err error, command string, exitCode int) error
+    SuggestFixes(err error) []string
+}
+
+type SAIError struct {
+    Type        string
+    Message     string
+    Cause       error
+    Context     map[string]interface{}
+    Suggestions []string
+}
+
+func (e *SAIError) Error() string {
+    msg := fmt.Sprintf("[%s] %s", e.Type, e.Message)
+    if e.Cause != nil {
+        msg += fmt.Sprintf(": %v", e.Cause)
+    }
+    
+    if len(e.Suggestions) > 0 {
+        msg += "\n\nSuggestions:"
+        for _, suggestion := range e.Suggestions {
+            msg += fmt.Sprintf("\n  - %s", suggestion)
+        }
+    }
+    
+    return msg
+}
+```

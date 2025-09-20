@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"sai/internal/debug"
 	"sai/internal/interfaces"
 	"sai/internal/types"
 )
@@ -101,6 +102,16 @@ func (ce *CommandExecutor) ExecuteCommand(ctx context.Context, command string, o
 		cmd.Stdin = strings.NewReader(options.Input)
 	}
 	
+	// Final validation before execution
+	if err := ce.validateCommandBeforeExecution(cmd); err != nil {
+		return &interfaces.CommandResult{
+			Command:  command,
+			Error:    fmt.Errorf("pre-execution validation failed: %w", err),
+			ExitCode: 1,
+			Duration: time.Since(startTime),
+		}, err
+	}
+	
 	// Execute command and capture output
 	output, err := cmd.CombinedOutput()
 	duration := time.Since(startTime)
@@ -127,19 +138,61 @@ func (ce *CommandExecutor) ExecuteCommand(ctx context.Context, command string, o
 		Duration: duration,
 	}
 	
-	// Log result
+	// Log command execution with debug system
+	var stderr string
+	if err != nil {
+		stderr = err.Error()
+	}
+	
+	env := make([]string, 0)
+	if cmd.Env != nil {
+		env = cmd.Env
+	}
+	
+	debug.LogCommandExecutionGlobal(
+		command,
+		"", // provider will be set by caller
+		parts[1:], // args
+		env,
+		cmd.Dir, // working directory
+		exitCode,
+		string(output), // stdout
+		stderr,
+		duration,
+	)
+	
+	// Log result with comprehensive information
 	if err != nil {
 		ce.logger.Error("Command execution failed", err, 
 			interfaces.LogField{Key: "command", Value: command},
 			interfaces.LogField{Key: "exit_code", Value: exitCode},
 			interfaces.LogField{Key: "duration", Value: duration},
+			interfaces.LogField{Key: "output", Value: string(output)},
+			interfaces.LogField{Key: "working_directory", Value: cmd.Dir},
 		)
+		
+		// Log additional context for debugging
+		if len(parts) > 0 {
+			ce.logger.Debug("Command execution details",
+				interfaces.LogField{Key: "executable", Value: parts[0]},
+				interfaces.LogField{Key: "arguments", Value: strings.Join(parts[1:], " ")},
+				interfaces.LogField{Key: "path_lookup", Value: cmd.Path},
+			)
+		}
 	} else {
 		ce.logger.Debug("Command executed successfully",
 			interfaces.LogField{Key: "command", Value: command},
 			interfaces.LogField{Key: "exit_code", Value: exitCode},
 			interfaces.LogField{Key: "duration", Value: duration},
 		)
+		
+		// Log output in verbose mode
+		if len(output) > 0 {
+			ce.logger.Debug("Command output",
+				interfaces.LogField{Key: "command", Value: command},
+				interfaces.LogField{Key: "output", Value: string(output)},
+			)
+		}
 	}
 	
 	return result, nil
@@ -300,4 +353,43 @@ func (ce *CommandExecutor) GetTimeout() time.Duration {
 // IsCommandAvailable checks if a command is available for execution
 func (ce *CommandExecutor) IsCommandAvailable(command string) bool {
 	return ce.validateCommand(command) == nil
+}
+
+// validateCommandBeforeExecution performs final validation before executing a command
+func (ce *CommandExecutor) validateCommandBeforeExecution(cmd *exec.Cmd) error {
+	if cmd == nil {
+		return fmt.Errorf("command is nil")
+	}
+	
+	if cmd.Path == "" {
+		return fmt.Errorf("command path is empty")
+	}
+	
+	// Check if the resolved executable exists and is executable
+	if !ce.isExecutableAvailable(cmd.Path) {
+		// Provide detailed error information
+		ce.logger.Error("Executable validation failed", fmt.Errorf("executable not found or not executable"),
+			interfaces.LogField{Key: "path", Value: cmd.Path},
+			interfaces.LogField{Key: "args", Value: cmd.Args},
+		)
+		
+		// Try to provide helpful suggestions
+		if len(cmd.Args) > 0 {
+			executable := cmd.Args[0]
+			if _, err := exec.LookPath(executable); err != nil {
+				return fmt.Errorf("executable '%s' not found in PATH. Please ensure it is installed and available. Resolved path: %s", executable, cmd.Path)
+			}
+		}
+		
+		return fmt.Errorf("executable not found or not executable: %s", cmd.Path)
+	}
+	
+	// Log the final command that will be executed
+	ce.logger.Debug("Final command validation passed",
+		interfaces.LogField{Key: "path", Value: cmd.Path},
+		interfaces.LogField{Key: "args", Value: cmd.Args},
+		interfaces.LogField{Key: "working_directory", Value: cmd.Dir},
+	)
+	
+	return nil
 }

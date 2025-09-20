@@ -7,7 +7,6 @@ import (
 
 	"sai/internal/interfaces"
 	"sai/internal/output"
-	"sai/internal/ui"
 	"sai/internal/types"
 )
 
@@ -46,36 +45,8 @@ func executeServiceCommand(action string, software string) error {
 		return err
 	}
 
-	// Handle provider selection if multiple providers are available
-	if flags.Provider == "" && !flags.Yes {
-		providerOptions, err := actionManager.GetAvailableProviders(software, action)
-		if err != nil {
-			formatter.ShowError(fmt.Errorf("failed to get available providers: %w", err))
-			return err
-		}
-
-		// If multiple providers available, show selection
-		if len(providerOptions) > 1 {
-			uiOptions := make([]*ui.ProviderOption, len(providerOptions))
-			for i, option := range providerOptions {
-				uiOptions[i] = &ui.ProviderOption{
-					Name:        option.Provider.Provider.Name,
-					PackageName: getServiceName(option.Provider, software),
-					Version:     option.Version,
-					IsInstalled: option.IsInstalled,
-					Description: option.Provider.Provider.Description,
-				}
-			}
-
-			selectedOption, err := userInterface.ShowProviderSelection(software, uiOptions)
-			if err != nil {
-				formatter.ShowError(fmt.Errorf("provider selection failed: %w", err))
-				return err
-			}
-
-			options.Provider = selectedOption.Name
-		}
-	}
+	// Provider selection is now handled by the Action Manager (Requirements 15.1, 15.3, 15.4)
+	// The Action Manager will show commands instead of package details for system-changing operations
 
 	// Show progress for system-changing operations
 	if !flags.Quiet && config.IsSystemChangingAction(action) {

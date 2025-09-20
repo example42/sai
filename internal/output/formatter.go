@@ -299,6 +299,68 @@ func (f *OutputFormatter) getColorFunc(colorName string) func(a ...interface{}) 
 	}
 }
 
+// FormatCompactCommand formats a command in compact format for provider selection
+// This implements Requirement 15.3 - compact output format showing "Command: (full command)"
+func (f *OutputFormatter) FormatCompactCommand(command string, provider string) string {
+	if f.jsonMode {
+		return command
+	}
+
+	if command == "" {
+		return "Command: (not available)"
+	}
+
+	// Truncate very long commands for readability
+	maxLength := 80
+	if len(command) > maxLength {
+		command = command[:maxLength-3] + "..."
+	}
+
+	return fmt.Sprintf("Command: %s", command)
+}
+
+// FormatProviderResult formats the result from a single provider in multi-provider execution
+// This implements Requirement 15.5 - more concise and informative output
+func (f *OutputFormatter) FormatProviderResult(provider string, success bool, output string, commands []string) {
+	if f.jsonMode {
+		resultData := map[string]interface{}{
+			"provider": provider,
+			"success":  success,
+			"output":   output,
+			"commands": commands,
+			"type":     "provider_result",
+		}
+		fmt.Println(f.FormatJSON(resultData))
+		return
+	}
+
+	// Show provider name with status
+	providerTag := f.FormatProviderName(provider)
+	statusIcon := "✓"
+	if !success {
+		statusIcon = "✗"
+	}
+	
+	fmt.Printf("%s %s\n", providerTag, statusIcon)
+	
+	// Show commands in compact format
+	if len(commands) > 0 && f.config.Output.ShowCommands {
+		for _, cmd := range commands {
+			fmt.Printf("  %s\n", f.FormatCompactCommand(cmd, provider))
+		}
+	}
+	
+	// Show output if available and not in quiet mode
+	if output != "" && !f.quietMode {
+		outputLines := strings.Split(strings.TrimSpace(output), "\n")
+		for _, line := range outputLines {
+			if line != "" {
+				fmt.Printf("  %s\n", line)
+			}
+		}
+	}
+}
+
 // isColorSupported checks if the terminal supports colors
 func isColorSupported() bool {
 	// Check if NO_COLOR environment variable is set

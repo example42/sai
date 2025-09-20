@@ -63,7 +63,8 @@ func (cm *ConfirmationManager) ConfirmAction(action, software, provider string, 
 }
 
 // ConfirmProviderSelection handles provider selection when multiple providers are available (Requirement 1.3)
-func (cm *ConfirmationManager) ConfirmProviderSelection(software string, options []*interfaces.ProviderOption) (*interfaces.ProviderOption, error) {
+// Updated to show commands instead of package details (Requirements 15.1, 15.3)
+func (cm *ConfirmationManager) ConfirmProviderSelection(software string, options []*interfaces.ProviderOption, action string, commands map[string][]string) (*interfaces.ProviderOption, error) {
 	if len(options) == 0 {
 		return nil, fmt.Errorf("no providers available for %s", software)
 	}
@@ -72,15 +73,24 @@ func (cm *ConfirmationManager) ConfirmProviderSelection(software string, options
 		return options[0], nil
 	}
 
-	// Convert to UI provider options
+	// Convert to UI provider options with command information
 	uiOptions := make([]*ui.ProviderOption, len(options))
 	for i, option := range options {
+		providerCommands := commands[option.Provider.Provider.Name]
+		commandStr := ""
+		if len(providerCommands) > 0 {
+			commandStr = strings.Join(providerCommands, " && ")
+		}
+		
+
+		
 		uiOptions[i] = &ui.ProviderOption{
 			Name:        option.Provider.Provider.Name,
 			PackageName: option.PackageName,
 			Version:     option.Version,
 			IsInstalled: option.IsInstalled,
 			Description: option.Provider.Provider.Description,
+			Command:     commandStr, // New field for command display
 		}
 	}
 
@@ -260,4 +270,50 @@ func (cm *ConfirmationManager) HandleNonInteractiveMode(action, software, provid
 	}
 	
 	return fmt.Errorf("confirmation required in non-interactive mode")
+}
+
+// ShouldExecuteAcrossProviders determines if an action should be executed across all providers automatically
+// This implements Requirements 15.2 and 15.4 - automatic execution for information-only commands
+func (cm *ConfirmationManager) ShouldExecuteAcrossProviders(action string) bool {
+	// Information-only commands that should execute across all providers without prompting
+	informationOnlyActions := []string{
+		"search",   // Requirement 2.3 - search across all providers
+		"info",     // Requirement 2.4 - info across all providers  
+		"version",  // Requirement 2.5 - version across all providers
+		"status",   // Service status checking
+		"check",    // Software health checking
+		"logs",     // Log viewing (when not modifying)
+	}
+	
+	for _, infoAction := range informationOnlyActions {
+		if action == infoAction {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// IsSystemChangingAction determines if an action modifies the system state
+// This implements Requirement 15.4 - maintain provider selection prompts only for system-changing operations
+func (cm *ConfirmationManager) IsSystemChangingAction(action string) bool {
+	systemChangingActions := []string{
+		"install",
+		"uninstall", 
+		"upgrade",
+		"start",
+		"stop",
+		"restart",
+		"enable",
+		"disable",
+		"apply",
+	}
+	
+	for _, changingAction := range systemChangingActions {
+		if action == changingAction {
+			return true
+		}
+	}
+	
+	return false
 }

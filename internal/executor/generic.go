@@ -124,26 +124,127 @@ func (ge *GenericExecutor) ValidateAction(
 	// Check if action exists
 	providerAction, exists := provider.Actions[action]
 	if !exists {
+		ge.logger.Debug("Action not found in provider",
+			interfaces.LogField{Key: "action", Value: action},
+			interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+			interfaces.LogField{Key: "available_actions", Value: fmt.Sprintf("%v", getActionNames(provider.Actions))},
+		)
 		return fmt.Errorf("action %s not supported by provider %s", action, provider.Provider.Name)
 	}
 	
 	// Validate action has execution method
 	if !providerAction.IsValid() {
+		ge.logger.Debug("Action has no valid execution method",
+			interfaces.LogField{Key: "action", Value: action},
+			interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+			interfaces.LogField{Key: "template", Value: providerAction.Template},
+			interfaces.LogField{Key: "command", Value: providerAction.Command},
+			interfaces.LogField{Key: "script", Value: providerAction.Script},
+			interfaces.LogField{Key: "steps", Value: len(providerAction.Steps)},
+		)
 		return fmt.Errorf("action %s has no valid execution method", action)
 	}
 	
 	// Validate template if present
 	if providerAction.Template != "" {
 		if err := ge.templateEngine.ValidateTemplate(providerAction.Template); err != nil {
-			return fmt.Errorf("invalid template for action %s: %w", action, err)
+			ge.logger.Error("Template validation failed", err,
+				interfaces.LogField{Key: "action", Value: action},
+				interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+				interfaces.LogField{Key: "template", Value: providerAction.Template},
+			)
+			return fmt.Errorf("template validation failed for action %s: %w", action, err)
 		}
+	}
+	
+	// Try to render the template to see if it resolves correctly
+	if providerAction.Template != "" {
+		context := &interfaces.TemplateContext{
+			Software:  software,
+			Provider:  provider.Provider.Name,
+			Saidata:   saidata,
+		}
+		
+		// Set saidata context in template engine
+		ge.templateEngine.SetSaidata(saidata)
+		
+		// First try with safety mode disabled to check basic template syntax
+		ge.templateEngine.SetSafetyMode(false)
+		rendered, err := ge.templateEngine.Render(providerAction.Template, context)
+		
+		if err != nil {
+			ge.templateEngine.SetSafetyMode(true) // Re-enable safety mode
+			ge.logger.Debug("Template rendering failed during validation", 
+				interfaces.LogField{Key: "action", Value: action},
+				interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+				interfaces.LogField{Key: "software", Value: software},
+				interfaces.LogField{Key: "template", Value: providerAction.Template},
+				interfaces.LogField{Key: "error", Value: err.Error()},
+			)
+			
+			// Provide additional context for debugging
+			if saidata != nil {
+				ge.logger.Debug("Saidata context for template validation",
+					interfaces.LogField{Key: "packages_count", Value: len(saidata.Packages)},
+					interfaces.LogField{Key: "services_count", Value: len(saidata.Services)},
+					interfaces.LogField{Key: "providers_count", Value: len(saidata.Providers)},
+					interfaces.LogField{Key: "is_generated", Value: saidata.IsGenerated},
+				)
+			}
+			
+			return fmt.Errorf("template rendering failed for action %s: %w", action, err)
+		}
+		
+		// Now try with safety mode enabled to catch function errors
+		ge.templateEngine.SetSafetyMode(true)
+		_, safetyErr := ge.templateEngine.Render(providerAction.Template, context)
+		
+		if safetyErr != nil {
+			ge.logger.Debug("Template safety validation failed",
+				interfaces.LogField{Key: "action", Value: action},
+				interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+				interfaces.LogField{Key: "software", Value: software},
+				interfaces.LogField{Key: "template", Value: providerAction.Template},
+				interfaces.LogField{Key: "error", Value: safetyErr.Error()},
+			)
+			return fmt.Errorf("template safety validation failed for action %s: %w", action, safetyErr)
+		}
+		
+		// Check if the rendered template contains error indicators
+		if strings.Contains(rendered, "error:") {
+			ge.logger.Debug("Template contains error indicators",
+				interfaces.LogField{Key: "action", Value: action},
+				interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+				interfaces.LogField{Key: "software", Value: software},
+				interfaces.LogField{Key: "template", Value: providerAction.Template},
+				interfaces.LogField{Key: "rendered", Value: rendered},
+			)
+			return fmt.Errorf("template resolution failed for action %s: %s", action, rendered)
+		}
+		
+		ge.logger.Debug("Template rendered successfully during validation",
+			interfaces.LogField{Key: "action", Value: action},
+			interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+			interfaces.LogField{Key: "software", Value: software},
+			interfaces.LogField{Key: "template", Value: providerAction.Template},
+			interfaces.LogField{Key: "rendered", Value: rendered},
+		)
 	}
 	
 	// Validate resources if saidata is available
 	if saidata != nil {
 		if validationResult, err := ge.ValidateResources(saidata, action); err != nil {
+			ge.logger.Debug("Resource validation failed",
+				interfaces.LogField{Key: "action", Value: action},
+				interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+				interfaces.LogField{Key: "error", Value: err.Error()},
+			)
 			return fmt.Errorf("resource validation failed: %w", err)
 		} else if !validationResult.CanProceed {
+			ge.logger.Debug("Cannot proceed with action due to missing resources",
+				interfaces.LogField{Key: "action", Value: action},
+				interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+			)
 			return fmt.Errorf("cannot proceed with action %s: missing required resources", action)
 		}
 	}
@@ -163,6 +264,19 @@ func (ge *GenericExecutor) ValidateResources(
 		}, nil
 	}
 	
+	// For install actions, we don't require resources to exist beforehand
+	// The install action will create them
+	installActions := []string{"install", "upgrade", "search", "info", "version"}
+	for _, installAction := range installActions {
+		if action == installAction {
+			return &interfaces.ResourceValidationResult{
+				Valid:      true,
+				CanProceed: true,
+			}, nil
+		}
+	}
+	
+	// For other actions (start, stop, restart, etc.), validate resources exist
 	return ge.validator.ValidateResources(saidata)
 }
 
@@ -237,7 +351,23 @@ func (ge *GenericExecutor) CanExecute(
 	software string,
 	saidata *types.SoftwareData,
 ) bool {
-	return ge.ValidateAction(provider, action, software, saidata) == nil
+	err := ge.ValidateAction(provider, action, software, saidata)
+	if err != nil {
+		ge.logger.Debug("Action cannot be executed",
+			interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+			interfaces.LogField{Key: "action", Value: action},
+			interfaces.LogField{Key: "software", Value: software},
+			interfaces.LogField{Key: "error", Value: err.Error()},
+		)
+		return false
+	}
+	
+	ge.logger.Debug("Action can be executed",
+		interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+		interfaces.LogField{Key: "action", Value: action},
+		interfaces.LogField{Key: "software", Value: software},
+	)
+	return true
 }
 
 // RenderTemplate renders command templates with saidata variables
@@ -424,12 +554,39 @@ func (ge *GenericExecutor) executeSingleAction(
 		Verbose: options.Verbose,
 	}
 	
+	// Log command execution attempt
+	ge.logger.Info("Executing command",
+		interfaces.LogField{Key: "command", Value: rendered},
+		interfaces.LogField{Key: "software", Value: software},
+		interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+		interfaces.LogField{Key: "action", Value: "single"},
+	)
+	
 	// Execute with retry if configured
 	var result *interfaces.CommandResult
 	if action.Retry != nil {
+		ge.logger.Debug("Executing with retry configuration",
+			interfaces.LogField{Key: "attempts", Value: action.Retry.Attempts},
+			interfaces.LogField{Key: "delay", Value: action.Retry.Delay},
+		)
 		result, err = ge.commandExecutor.ExecuteWithRetry(ctx, rendered, cmdOptions, action.Retry)
 	} else {
 		result, err = ge.commandExecutor.ExecuteCommand(ctx, rendered, cmdOptions)
+	}
+	
+	// Log execution result
+	if err != nil {
+		ge.logger.Error("Command execution failed", err,
+			interfaces.LogField{Key: "command", Value: rendered},
+			interfaces.LogField{Key: "software", Value: software},
+			interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+		)
+	} else if result != nil {
+		ge.logger.Info("Command executed successfully",
+			interfaces.LogField{Key: "command", Value: rendered},
+			interfaces.LogField{Key: "exit_code", Value: result.ExitCode},
+			interfaces.LogField{Key: "duration", Value: result.Duration},
+		)
 	}
 	
 	// Validate result if validation is configured
@@ -467,7 +624,44 @@ func (ge *GenericExecutor) renderCommand(
 		Variables: options.Variables,
 	}
 	
-	return ge.templateEngine.Render(command, context)
+	// Set saidata context in template engine
+	ge.templateEngine.SetSaidata(saidata)
+	
+	ge.logger.Debug("Rendering command template",
+		interfaces.LogField{Key: "template", Value: command},
+		interfaces.LogField{Key: "software", Value: software},
+		interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+	)
+	
+	rendered, err := ge.templateEngine.Render(command, context)
+	if err != nil {
+		ge.logger.Error("Template rendering failed", err,
+			interfaces.LogField{Key: "template", Value: command},
+			interfaces.LogField{Key: "software", Value: software},
+			interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+		)
+		
+		// Provide additional debugging context
+		if saidata != nil {
+			ge.logger.Debug("Saidata context for failed template rendering",
+				interfaces.LogField{Key: "packages_count", Value: len(saidata.Packages)},
+				interfaces.LogField{Key: "services_count", Value: len(saidata.Services)},
+				interfaces.LogField{Key: "providers_count", Value: len(saidata.Providers)},
+				interfaces.LogField{Key: "is_generated", Value: saidata.IsGenerated},
+			)
+		}
+		
+		return "", fmt.Errorf("failed to render template '%s': %w", command, err)
+	}
+	
+	ge.logger.Debug("Template rendered successfully",
+		interfaces.LogField{Key: "template", Value: command},
+		interfaces.LogField{Key: "rendered", Value: rendered},
+		interfaces.LogField{Key: "software", Value: software},
+		interfaces.LogField{Key: "provider", Value: provider.Provider.Name},
+	)
+	
+	return rendered, nil
 }
 
 // evaluateCondition evaluates a step condition
@@ -548,4 +742,13 @@ func (ge *GenericExecutor) executeRollback(
 	}
 	
 	return nil
+}
+
+// getActionNames returns a list of action names from a map
+func getActionNames(actions map[string]types.Action) []string {
+	var names []string
+	for name := range actions {
+		names = append(names, name)
+	}
+	return names
 }

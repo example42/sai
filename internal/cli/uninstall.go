@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 	"sai/internal/interfaces"
 	"sai/internal/output"
-	"sai/internal/ui"
 )
 
 // uninstallCmd represents the uninstall command
@@ -57,49 +56,8 @@ func executeUninstallCommand(software string) error {
 		Timeout:   config.Timeout,
 	}
 
-	// Handle provider selection for installed software (Requirement 2.1)
-	if flags.Provider == "" && !flags.Yes {
-		providerOptions, err := actionManager.GetAvailableProviders(software, "uninstall")
-		if err != nil {
-			formatter.ShowError(fmt.Errorf("failed to get available providers: %w", err))
-			return err
-		}
-
-		// Filter to only show providers where software is installed
-		var installedOptions []*interfaces.ProviderOption
-		for _, option := range providerOptions {
-			if option.IsInstalled {
-				installedOptions = append(installedOptions, option)
-			}
-		}
-
-		// If multiple providers have the software installed, show selection
-		if len(installedOptions) > 1 {
-			uiOptions := make([]*ui.ProviderOption, len(installedOptions))
-			for i, option := range installedOptions {
-				uiOptions[i] = &ui.ProviderOption{
-					Name:        option.Provider.Provider.Name,
-					PackageName: option.PackageName,
-					Version:     option.Version,
-					IsInstalled: option.IsInstalled,
-					Description: option.Provider.Provider.Description,
-				}
-			}
-
-			selectedOption, err := userInterface.ShowProviderSelection(software, uiOptions)
-			if err != nil {
-				formatter.ShowError(fmt.Errorf("provider selection failed: %w", err))
-				return err
-			}
-
-			options.Provider = selectedOption.Name
-		} else if len(installedOptions) == 1 {
-			options.Provider = installedOptions[0].Provider.Provider.Name
-		} else {
-			formatter.ShowError(fmt.Errorf("software %s does not appear to be installed", software))
-			return fmt.Errorf("software not installed")
-		}
-	}
+	// Provider selection is now handled by the Action Manager (Requirements 15.1, 15.3, 15.4)
+	// The Action Manager will show commands instead of package details for system-changing operations
 
 	// Show progress
 	if !flags.Quiet {

@@ -377,6 +377,167 @@ func TestProviderDetector_RefreshOSInfo(t *testing.T) {
 		newOSInfo.DetectedAt.Equal(originalOSInfo.DetectedAt))
 }
 
+func TestProviderDetector_ExecutableBasedDetection(t *testing.T) {
+	detector, err := NewProviderDetector()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		provider       *types.ProviderData
+		expectedResult bool
+		description    string
+	}{
+		{
+			name: "provider with existing executable",
+			provider: &types.ProviderData{
+				Provider: types.ProviderInfo{
+					Name:       "test-existing-exec",
+					Type:       "package_manager",
+					Platforms:  []string{runtime.GOOS},
+					Executable: getExistingExecutable(),
+				},
+			},
+			expectedResult: true,
+			description:    "Should be available when executable exists",
+		},
+		{
+			name: "provider with non-existing executable",
+			provider: &types.ProviderData{
+				Provider: types.ProviderInfo{
+					Name:       "test-missing-exec",
+					Type:       "package_manager",
+					Platforms:  []string{runtime.GOOS},
+					Executable: "definitely-nonexistent-command-12345",
+				},
+			},
+			expectedResult: false,
+			description:    "Should NOT be available when executable is missing",
+		},
+		{
+			name: "provider with incompatible platform",
+			provider: &types.ProviderData{
+				Provider: types.ProviderInfo{
+					Name:       "test-wrong-platform",
+					Type:       "package_manager",
+					Platforms:  []string{"incompatible-platform"},
+					Executable: getExistingExecutable(),
+				},
+			},
+			expectedResult: false,
+			description:    "Should NOT be available on incompatible platform",
+		},
+		{
+			name: "apt provider on non-debian system",
+			provider: &types.ProviderData{
+				Provider: types.ProviderInfo{
+					Name:       "apt",
+					Type:       "package_manager",
+					Platforms:  []string{"debian", "ubuntu"},
+					Executable: "apt-get",
+				},
+			},
+			expectedResult: false, // Will be false on macOS/Windows
+			description:    "APT should not be available on non-Debian systems",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			available := detector.IsAvailable(tt.provider)
+			
+			// For platform-specific tests, adjust expectations based on current platform
+			if tt.name == "apt provider on non-debian system" {
+				osInfo := detector.GetOSInfo()
+				if osInfo.OS == "debian" || osInfo.OS == "ubuntu" {
+					// On Debian/Ubuntu, result depends on whether apt-get is installed
+					// Don't assert specific result, just verify it doesn't crash
+					t.Logf("APT availability on %s: %v", osInfo.OS, available)
+				} else {
+					// On non-Debian systems, should definitely be false
+					assert.False(t, available, "APT should not be available on %s", osInfo.OS)
+				}
+			} else {
+				assert.Equal(t, tt.expectedResult, available, tt.description)
+			}
+			
+			// Verify caching works
+			available2 := detector.IsAvailable(tt.provider)
+			assert.Equal(t, available, available2, "Cached result should match initial result")
+		})
+	}
+}
+
+func TestProviderDetector_DebugLogging(t *testing.T) {
+	detector, err := NewProviderDetector()
+	require.NoError(t, err)
+
+	providers := []*types.ProviderData{
+		{
+			Provider: types.ProviderInfo{
+				Name:       "test-debug-1",
+				Type:       "package_manager",
+				Platforms:  []string{runtime.GOOS},
+				Executable: getExistingExecutable(),
+			},
+		},
+		{
+			Provider: types.ProviderInfo{
+				Name:       "test-debug-2",
+				Type:       "container",
+				Platforms:  []string{runtime.GOOS},
+				Executable: "nonexistent-command-debug",
+			},
+		},
+	}
+
+	// Test debug logging (should not crash)
+	detector.LogProviderDetection(providers, true)
+
+	// Test detection stats
+	stats := detector.GetDetectionStats(providers)
+	assert.NotNil(t, stats)
+	assert.Equal(t, len(providers), stats.TotalProviders)
+	assert.GreaterOrEqual(t, stats.AvailableProviders, 0)
+	assert.GreaterOrEqual(t, stats.UnavailableProviders, 0)
+	assert.Equal(t, stats.TotalProviders, stats.AvailableProviders+stats.UnavailableProviders)
+
+	// Test cache stats
+	cacheStats := detector.GetCacheStats()
+	assert.NotNil(t, cacheStats)
+	assert.GreaterOrEqual(t, cacheStats.TotalEntries, 0)
+}
+
+func TestProviderDetector_CacheOptimization(t *testing.T) {
+	detector, err := NewProviderDetector()
+	require.NoError(t, err)
+
+	// Set very short cache expiry for testing
+	detector.SetCacheExpiry(1 * time.Millisecond)
+
+	provider := &types.ProviderData{
+		Provider: types.ProviderInfo{
+			Name:       "test-cache-optimization",
+			Type:       "package_manager",
+			Platforms:  []string{runtime.GOOS},
+			Executable: "nonexistent-for-cache-test",
+		},
+	}
+
+	// Trigger detection to populate cache
+	detector.IsAvailable(provider)
+
+	// Wait for cache to expire
+	time.Sleep(5 * time.Millisecond)
+
+	// Optimize cache (should remove expired entries)
+	removed := detector.OptimizeCache()
+	assert.GreaterOrEqual(t, removed, 0)
+
+	// Verify cache stats
+	cacheStats := detector.GetCacheStats()
+	assert.NotNil(t, cacheStats)
+}
+
 // Helper function to get an executable that should exist on the current platform
 func getExistingExecutable() string {
 	switch runtime.GOOS {

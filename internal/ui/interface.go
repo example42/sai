@@ -25,6 +25,7 @@ type ProviderOption struct {
 	Version     string
 	IsInstalled bool
 	Description string
+	Command     string // New field for displaying the actual command (Requirement 15.3)
 }
 
 // NewUserInterface creates a new user interface
@@ -63,13 +64,19 @@ func (ui *UserInterface) ShowProviderSelection(software string, options []*Provi
 		}
 
 		fmt.Printf("%d. %s\n", i+1, ui.formatter.FormatProviderName(option.Name))
-		fmt.Printf("   Package: %s\n", option.PackageName)
-		if option.Version != "" {
-			fmt.Printf("   Version: %s\n", option.Version)
+		
+		// Show command instead of package details (Requirements 15.1, 15.3)
+		if option.Command != "" {
+			fmt.Printf("   Command: %s\n", option.Command)
+		} else {
+			// Fallback to package info if no command available
+			fmt.Printf("   Package: %s\n", option.PackageName)
+			if option.Version != "" {
+				fmt.Printf("   Version: %s\n", option.Version)
+			}
+
 		}
-		if option.Description != "" {
-			fmt.Printf("   Description: %s\n", option.Description)
-		}
+		
 		fmt.Printf("   Status: %s\n\n", status)
 	}
 

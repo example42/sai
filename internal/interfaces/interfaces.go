@@ -18,6 +18,9 @@ type ProviderManager interface {
 	// GetAvailableProviders returns all available providers
 	GetAvailableProviders() []*types.ProviderData
 	
+	// GetAllProviders returns all providers (both available and unavailable)
+	GetAllProviders() []*types.ProviderData
+	
 	// SelectProvider selects the best provider for a software and action
 	SelectProvider(software string, action string, preferredProvider string) (*types.ProviderData, error)
 	
@@ -107,6 +110,9 @@ type ActionManager interface {
 	
 	// ManageRepositorySetup automatically sets up repositories from saidata
 	ManageRepositorySetup(saidata *types.SoftwareData) error
+	
+	// GetProviderManager returns the provider manager for stats and debugging
+	GetProviderManager() ProviderManager
 }
 
 // GenericExecutor executes provider actions with safety validation
@@ -422,6 +428,13 @@ type SystemValidationResult struct {
 	MissingDependencies  []string
 	UnsupportedPlatform  bool
 	Warnings             []string
+}
+
+// ValidationResult contains validation results with recovery suggestions
+type ValidationResult struct {
+	Valid       bool
+	Error       error
+	Suggestions []string
 }
 
 // Config represents application configuration
