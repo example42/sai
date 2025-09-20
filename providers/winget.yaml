@@ -13,27 +13,27 @@ provider:
 actions:
   install:
     description: "Install packages via Winget"
-    template: "winget install --id {{sai_package(0, 'name', 'winget')}} --silent --accept-package-agreements --accept-source-agreements"
+    template: "winget install --id {{sai_package(0, 'package_name', 'winget')}} --silent --accept-package-agreements --accept-source-agreements"
     timeout: 600
-    detection: "winget show {{sai_package(0, 'name', 'winget')}} >/dev/null 2>&1"
+    detection: "winget show {{sai_package(0, 'package_name', 'winget')}} >/dev/null 2>&1"
     validation:
-      command: "winget list | findstr {{sai_package(0, 'name', 'winget')}}"
+      command: "winget list | findstr {{sai_package(0, 'package_name', 'winget')}}"
       expected_exit_code: 0
-    rollback: "winget uninstall --id {{sai_package(0, 'name', 'winget')}} --silent"
+    rollback: "winget uninstall --id {{sai_package(0, 'package_name', 'winget')}} --silent"
 
   uninstall:
     description: "Remove packages via Winget"
-    template: "winget uninstall --id {{sai_package(0, 'name', 'winget')}} --silent"
-    detection: "winget show {{sai_package(0, 'name', 'winget')}} >/dev/null 2>&1"
+    template: "winget uninstall --id {{sai_package(0, 'package_name', 'winget')}} --silent"
+    detection: "winget show {{sai_package(0, 'package_name', 'winget')}} >/dev/null 2>&1"
     validation:
-      command: "winget list | findstr {{sai_package(0, 'name', 'winget')}} || exit 1"
+      command: "winget list | findstr {{sai_package(0, 'package_name', 'winget')}} || exit 1"
       expected_exit_code: 1
 
   upgrade:
     description: "Upgrade packages via Winget"
-    template: "winget upgrade --id {{sai_package(0, 'name', 'winget')}} --silent --accept-package-agreements --accept-source-agreements"
+    template: "winget upgrade --id {{sai_package(0, 'package_name', 'winget')}} --silent --accept-package-agreements --accept-source-agreements"
     timeout: 600
-    detection: "winget show {{sai_package(0, 'name', 'winget')}} >/dev/null 2>&1"
+    detection: "winget show {{sai_package(0, 'package_name', 'winget')}} >/dev/null 2>&1"
 
   start:
     description: "Start service via sc command"
@@ -71,20 +71,20 @@ actions:
 
   logs:
     description: "Show service logs"
-    template: "Get-WinEvent -LogName Application | Where-Object {$_.ProviderName -eq '{{sai_package(0, 'name', 'winget')}}'} | Select-Object -First 50"
+    template: "Get-WinEvent -LogName Application | Where-Object {$_.ProviderName -eq '{{sai_package(0, 'package_name', 'winget')}}'} | Select-Object -First 50"
 
   info:
     description: "Show package information"
-    template: "winget show --id {{sai_package(0, 'name', 'winget')}}"
+    template: "winget show --id {{sai_package(0, 'package_name', 'winget')}}"
 
   search:
     description: "Search for packages"
-    template: "winget search {{sai_package(0, 'name', 'winget')}}"
+    template: "winget search {{sai_package(0, 'package_name', 'winget')}}"
 
   list:
     description: "List installed packages"
-    template: "winget list | findstr {{sai_package(0, 'name', 'winget')}}"
+    template: "winget list | findstr {{sai_package(0, 'package_name', 'winget')}}"
 
   version:
     description: "Show package version"
-    template: "winget list --id {{sai_package(0, 'name', 'winget')}} --exact"
+    template: "winget list --id {{sai_package(0, 'package_name', 'winget')}} --exact"

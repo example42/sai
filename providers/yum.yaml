@@ -13,27 +13,27 @@ provider:
 actions:
   install:
     description: "Install packages via YUM"
-    template: "yum install -y {{sai_package('*', 'name', 'yum')}}"
+    template: "yum install -y {{sai_package('*', 'package_name', 'yum')}}"
     timeout: 600
-    detection: "yum info {{sai_package(0, 'name', 'yum')}} >/dev/null 2>&1"
+    detection: "yum info {{sai_package(0, 'package_name', 'yum')}} >/dev/null 2>&1"
     validation:
-      command: "rpm -qa | grep {{sai_package(0, 'name', 'yum')}}"
+      command: "rpm -qa | grep {{sai_package(0, 'package_name', 'yum')}}"
       expected_exit_code: 0
-    rollback: "yum remove -y {{sai_package('*', 'name', 'yum')}}"
+    rollback: "yum remove -y {{sai_package('*', 'package_name', 'yum')}}"
 
   uninstall:
     description: "Remove packages via YUM"
-    template: "yum remove -y {{sai_package('*', 'name', 'yum')}}"
-    detection: "rpm -qa | grep -q {{sai_package(0, 'name', 'yum')}}"
+    template: "yum remove -y {{sai_package('*', 'package_name', 'yum')}}"
+    detection: "rpm -qa | grep -q {{sai_package(0, 'package_name', 'yum')}}"
     validation:
-      command: "! rpm -qa | grep {{sai_package(0, 'name', 'yum')}}"
+      command: "! rpm -qa | grep {{sai_package(0, 'package_name', 'yum')}}"
       expected_exit_code: 0
 
   upgrade:
     description: "Upgrade packages via YUM"
-    template: "yum update -y {{sai_package('*', 'name', 'yum')}}"
+    template: "yum update -y {{sai_package('*', 'package_name', 'yum')}}"
     timeout: 600
-    detection: "rpm -qa | grep -q {{sai_package(0, 'name', 'yum')}}"
+    detection: "rpm -qa | grep -q {{sai_package(0, 'package_name', 'yum')}}"
 
   start:
     description: "Start service via service command"
@@ -68,16 +68,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "yum info {{sai_package(0, 'name', 'yum')}}"
+    template: "yum info {{sai_package(0, 'package_name', 'yum')}}"
 
   search:
     description: "Search for packages"
-    template: "yum search {{sai_package(0, 'name', 'yum')}}"
+    template: "yum search {{sai_package(0, 'package_name', 'yum')}}"
 
   list:
     description: "List installed packages"
-    template: "rpm -qa | grep {{sai_package(0, 'name', 'yum')}}"
+    template: "rpm -qa | grep {{sai_package(0, 'package_name', 'yum')}}"
 
   version:
     description: "Show package version"
-    template: "rpm -q {{sai_package(0, 'name', 'yum')}} --queryformat '%{NAME} %{VERSION}-%{RELEASE}'"
+    template: "rpm -q {{sai_package(0, 'package_name', 'yum')}} --queryformat '%{NAME} %{VERSION}-%{RELEASE}'"

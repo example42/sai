@@ -13,27 +13,27 @@ provider:
 actions:
   install:
     description: "Install packages via NuGet"
-    template: "dotnet tool install -g {{sai_package('*', 'name', 'nuget')}}"
+    template: "dotnet tool install -g {{sai_package('*', 'package_name', 'nuget')}}"
     timeout: 300
-    detection: "nuget list {{sai_package(0, 'name', 'nuget')}} >/dev/null 2>&1"
+    detection: "nuget list {{sai_package(0, 'package_name', 'nuget')}} >/dev/null 2>&1"
     validation:
-      command: "dotnet tool list -g | grep {{sai_package(0, 'name', 'nuget')}}"
+      command: "dotnet tool list -g | grep {{sai_package(0, 'package_name', 'nuget')}}"
       expected_exit_code: 0
-    rollback: "dotnet tool uninstall -g {{sai_package('*', 'name', 'nuget')}}"
+    rollback: "dotnet tool uninstall -g {{sai_package('*', 'package_name', 'nuget')}}"
 
   uninstall:
     description: "Remove packages via NuGet"
-    template: "dotnet tool uninstall -g {{sai_package('*', 'name', 'nuget')}}"
-    detection: "nuget list {{sai_package(0, 'name', 'nuget')}} >/dev/null 2>&1"
+    template: "dotnet tool uninstall -g {{sai_package('*', 'package_name', 'nuget')}}"
+    detection: "nuget list {{sai_package(0, 'package_name', 'nuget')}} >/dev/null 2>&1"
     validation:
-      command: "! dotnet tool list -g | grep {{sai_package(0, 'name', 'nuget')}}"
+      command: "! dotnet tool list -g | grep {{sai_package(0, 'package_name', 'nuget')}}"
       expected_exit_code: 0
 
   upgrade:
     description: "Upgrade packages via NuGet"
-    template: "dotnet tool update -g {{sai_package('*', 'name', 'nuget')}}"
+    template: "dotnet tool update -g {{sai_package('*', 'package_name', 'nuget')}}"
     timeout: 300
-    detection: "nuget list {{sai_package(0, 'name', 'nuget')}} >/dev/null 2>&1"
+    detection: "nuget list {{sai_package(0, 'package_name', 'nuget')}} >/dev/null 2>&1"
 
   start:
     description: "Start .NET application"
@@ -41,33 +41,33 @@ actions:
 
   stop:
     description: "Stop .NET application"
-    template: "pkill -f {{sai_package(0, 'name', 'nuget')}}"
+    template: "pkill -f {{sai_package(0, 'package_name', 'nuget')}}"
 
   restart:
     description: "Restart .NET application"
     steps:
       - name: "stop-app"
-        command: "pkill -f {{sai_package(0, 'name', 'nuget')}}"
+        command: "pkill -f {{sai_package(0, 'package_name', 'nuget')}}"
         ignore_failure: true
       - name: "start-app"
         command: "{{sai_command(0, 'path', 'nuget')}}"
 
   status:
     description: "Check application status"
-    template: "pgrep -f {{sai_package(0, 'name', 'nuget')}}"
+    template: "pgrep -f {{sai_package(0, 'package_name', 'nuget')}}"
 
   info:
     description: "Show package information"
-    template: "dotnet tool list -g | grep {{sai_package(0, 'name', 'nuget')}}"
+    template: "dotnet tool list -g | grep {{sai_package(0, 'package_name', 'nuget')}}"
 
   search:
     description: "Search for packages"
-    template: "dotnet package search {{sai_package(0, 'name', 'nuget')}}"
+    template: "dotnet package search {{sai_package(0, 'package_name', 'nuget')}}"
 
   list:
     description: "List installed packages"
-    template: "dotnet tool list -g | grep {{sai_package(0, 'name', 'nuget')}}"
+    template: "dotnet tool list -g | grep {{sai_package(0, 'package_name', 'nuget')}}"
 
   version:
     description: "Show package version"
-    template: "dotnet tool list -g | grep '^{{sai_package(0, 'name', 'nuget')}}'"
+    template: "dotnet tool list -g | grep '^{{sai_package(0, 'package_name', 'nuget')}}'"

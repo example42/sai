@@ -17,20 +17,20 @@ actions:
       - name: "update-cache"
         command: "apt-get update"
       - name: "install-packages"
-        command: "apt-get install -y {{sai_package('*', 'name', 'apt')}}"
+        command: "apt-get install -y {{sai_package('*', 'package_name', 'apt')}}"
     timeout: 600
-    detection: "apt-cache show {{sai_package(0, 'name', 'apt')}} >/dev/null 2>&1"
+    detection: "apt-cache show {{sai_package(0, 'package_name', 'apt')}} >/dev/null 2>&1"
     validation:
-      command: "dpkg -l | grep {{sai_package(0, 'name', 'apt')}}"
+      command: "dpkg -l | grep {{sai_package(0, 'package_name', 'apt')}}"
       expected_exit_code: 0
-    rollback: "apt-get remove -y {{sai_package('*', 'name', 'apt')}}"
+    rollback: "apt-get remove -y {{sai_package('*', 'package_name', 'apt')}}"
 
   uninstall:
     description: "Remove packages via APT"
-    template: "apt-get remove -y {{sai_package('*', 'name', 'apt')}}"
-    detection: "dpkg -l | grep -q '^ii.*{{sai_package(0, 'name', 'apt')}}'"
+    template: "apt-get remove -y {{sai_package('*', 'package_name', 'apt')}}"
+    detection: "dpkg -l | grep -q '^ii.*{{sai_package(0, 'package_name', 'apt')}}'"
     validation:
-      command: "! dpkg -l | grep {{sai_package(0, 'name', 'apt')}}"
+      command: "! dpkg -l | grep {{sai_package(0, 'package_name', 'apt')}}"
       expected_exit_code: 0
 
   upgrade:
@@ -39,9 +39,9 @@ actions:
       - name: "update-cache"
         command: "apt-get update"
       - name: "upgrade-packages"
-        command: "apt-get upgrade -y {{sai_package('*', 'name', 'apt')}}"
+        command: "apt-get upgrade -y {{sai_package('*', 'package_name', 'apt')}}"
     timeout: 600
-    detection: "dpkg -l | grep -q '^ii.*{{sai_package(0, 'name', 'apt')}}'"
+    detection: "dpkg -l | grep -q '^ii.*{{sai_package(0, 'package_name', 'apt')}}'"
 
   start:
     description: "Start service via systemctl"
@@ -79,16 +79,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "apt show {{sai_package(0, 'name', 'apt')}}"
+    template: "apt show {{sai_package(0, 'package_name', 'apt')}}"
 
   search:
     description: "Search for packages"
-    template: "apt search {{sai_package(0, 'name', 'apt')}}"
+    template: "apt search {{sai_package(0, 'package_name', 'apt')}}"
 
   list:
     description: "List installed packages"
-    template: "dpkg -l | grep {{sai_package(0, 'name', 'apt')}}"
+    template: "dpkg -l | grep {{sai_package(0, 'package_name', 'apt')}}"
 
   version:
     description: "Show package version"
-    template: "dpkg -l {{sai_package(0, 'name', 'apt')}} | grep '^ii' | awk '{print $2, $3}'"
+    template: "dpkg -l {{sai_package(0, 'package_name', 'apt')}} | grep '^ii' | awk '{print $2, $3}'"

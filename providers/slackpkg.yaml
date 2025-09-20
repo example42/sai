@@ -17,20 +17,20 @@ actions:
       - name: "update-package-list"
         command: "slackpkg update"
       - name: "install-packages"
-        command: "slackpkg install {{sai_package('*', 'name', 'slackpkg')}}"
+        command: "slackpkg install {{sai_package('*', 'package_name', 'slackpkg')}}"
     timeout: 600
-    detection: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}} >/dev/null 2>&1"
+    detection: "ls /var/log/packages/ | grep {{sai_package(0, 'package_name', 'slackpkg')}} >/dev/null 2>&1"
     validation:
-      command: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}}"
+      command: "ls /var/log/packages/ | grep {{sai_package(0, 'package_name', 'slackpkg')}}"
       expected_exit_code: 0
-    rollback: "slackpkg remove {{sai_package('*', 'name', 'slackpkg')}}"
+    rollback: "slackpkg remove {{sai_package('*', 'package_name', 'slackpkg')}}"
 
   uninstall:
     description: "Remove packages via Slackpkg"
-    template: "slackpkg remove {{sai_package('*', 'name', 'slackpkg')}}"
-    detection: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}} >/dev/null 2>&1"
+    template: "slackpkg remove {{sai_package('*', 'package_name', 'slackpkg')}}"
+    detection: "ls /var/log/packages/ | grep {{sai_package(0, 'package_name', 'slackpkg')}} >/dev/null 2>&1"
     validation:
-      command: "! ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}}"
+      command: "! ls /var/log/packages/ | grep {{sai_package(0, 'package_name', 'slackpkg')}}"
       expected_exit_code: 0
 
   upgrade:
@@ -39,9 +39,9 @@ actions:
       - name: "update-package-list"
         command: "slackpkg update"
       - name: "upgrade-packages"
-        command: "slackpkg upgrade {{sai_package('*', 'name', 'slackpkg')}}"
+        command: "slackpkg upgrade {{sai_package('*', 'package_name', 'slackpkg')}}"
     timeout: 600
-    detection: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}} >/dev/null 2>&1"
+    detection: "ls /var/log/packages/ | grep {{sai_package(0, 'package_name', 'slackpkg')}} >/dev/null 2>&1"
 
   start:
     description: "Start service via rc script"
@@ -76,16 +76,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "slackpkg info {{sai_package(0, 'name', 'slackpkg')}}"
+    template: "slackpkg info {{sai_package(0, 'package_name', 'slackpkg')}}"
 
   search:
     description: "Search for packages"
-    template: "slackpkg search {{sai_package(0, 'name', 'slackpkg')}}"
+    template: "slackpkg search {{sai_package(0, 'package_name', 'slackpkg')}}"
 
   list:
     description: "List installed packages"
-    template: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}}"
+    template: "ls /var/log/packages/ | grep {{sai_package(0, 'package_name', 'slackpkg')}}"
 
   version:
     description: "Show package version"
-    template: "ls /var/log/packages/ | grep {{sai_package(0, 'name', 'slackpkg')}} | head -1"
+    template: "ls /var/log/packages/ | grep {{sai_package(0, 'package_name', 'slackpkg')}} | head -1"

@@ -13,27 +13,27 @@ provider:
 actions:
   install:
     description: "Install packages via PKG"
-    template: "pkg install -y {{sai_package('*', 'name', 'pkg')}}"
+    template: "pkg install -y {{sai_package('*', 'package_name', 'pkg')}}"
     timeout: 600
-    detection: "pkg info {{sai_package(0, 'name', 'pkg')}} >/dev/null 2>&1"
+    detection: "pkg info {{sai_package(0, 'package_name', 'pkg')}} >/dev/null 2>&1"
     validation:
-      command: "pkg info | grep {{sai_package(0, 'name', 'pkg')}}"
+      command: "pkg info | grep {{sai_package(0, 'package_name', 'pkg')}}"
       expected_exit_code: 0
-    rollback: "pkg delete -y {{sai_package('*', 'name', 'pkg')}}"
+    rollback: "pkg delete -y {{sai_package('*', 'package_name', 'pkg')}}"
 
   uninstall:
     description: "Remove packages via PKG"
-    template: "pkg delete -y {{sai_package('*', 'name', 'pkg')}}"
-    detection: "pkg info {{sai_package(0, 'name', 'pkg')}} >/dev/null 2>&1"
+    template: "pkg delete -y {{sai_package('*', 'package_name', 'pkg')}}"
+    detection: "pkg info {{sai_package(0, 'package_name', 'pkg')}} >/dev/null 2>&1"
     validation:
-      command: "! pkg info | grep {{sai_package(0, 'name', 'pkg')}}"
+      command: "! pkg info | grep {{sai_package(0, 'package_name', 'pkg')}}"
       expected_exit_code: 0
 
   upgrade:
     description: "Upgrade packages via PKG"
-    template: "pkg upgrade -y {{sai_package('*', 'name', 'pkg')}}"
+    template: "pkg upgrade -y {{sai_package('*', 'package_name', 'pkg')}}"
     timeout: 600
-    detection: "pkg info {{sai_package(0, 'name', 'pkg')}} >/dev/null 2>&1"
+    detection: "pkg info {{sai_package(0, 'package_name', 'pkg')}} >/dev/null 2>&1"
 
   start:
     description: "Start service via service command"
@@ -68,16 +68,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "pkg info {{sai_package(0, 'name', 'pkg')}}"
+    template: "pkg info {{sai_package(0, 'package_name', 'pkg')}}"
 
   search:
     description: "Search for packages"
-    template: "pkg search {{sai_package(0, 'name', 'pkg')}}"
+    template: "pkg search {{sai_package(0, 'package_name', 'pkg')}}"
 
   list:
     description: "List installed packages"
-    template: "pkg info | grep {{sai_package(0, 'name', 'pkg')}}"
+    template: "pkg info | grep {{sai_package(0, 'package_name', 'pkg')}}"
 
   version:
     description: "Show package version"
-    template: "pkg info {{sai_package(0, 'name', 'pkg')}} | grep Version"
+    template: "pkg info {{sai_package(0, 'package_name', 'pkg')}} | grep Version"

@@ -13,27 +13,27 @@ provider:
 actions:
   install:
     description: "Install packages via NPM"
-    template: "npm install -g {{sai_package('*', 'name', 'npm')}}"
+    template: "npm install -g {{sai_package('*', 'package_name', 'npm')}}"
     timeout: 300
-    detection: "npm view {{sai_package(0, 'name', 'npm')}} >/dev/null 2>&1"
+    detection: "npm view {{sai_package(0, 'package_name', 'npm')}} >/dev/null 2>&1"
     validation:
-      command: "npm list -g | grep {{sai_package(0, 'name', 'npm')}}"
+      command: "npm list -g | grep {{sai_package(0, 'package_name', 'npm')}}"
       expected_exit_code: 0
-    rollback: "npm uninstall -g {{sai_package('*', 'name', 'npm')}}"
+    rollback: "npm uninstall -g {{sai_package('*', 'package_name', 'npm')}}"
 
   uninstall:
     description: "Remove packages via NPM"
-    template: "npm uninstall -g {{sai_package('*', 'name', 'npm')}}"
-    detection: "npm list -g | grep -q {{sai_package(0, 'name', 'npm')}}"
+    template: "npm uninstall -g {{sai_package('*', 'package_name', 'npm')}}"
+    detection: "npm list -g | grep -q {{sai_package(0, 'package_name', 'npm')}}"
     validation:
-      command: "! npm list -g | grep {{sai_package(0, 'name', 'npm')}}"
+      command: "! npm list -g | grep {{sai_package(0, 'package_name', 'npm')}}"
       expected_exit_code: 0
 
   upgrade:
     description: "Upgrade packages via NPM"
-    template: "npm update -g {{sai_package('*', 'name', 'npm')}}"
+    template: "npm update -g {{sai_package('*', 'package_name', 'npm')}}"
     timeout: 300
-    detection: "npm list -g | grep -q {{sai_package(0, 'name', 'npm')}}"
+    detection: "npm list -g | grep -q {{sai_package(0, 'package_name', 'npm')}}"
 
   start:
     description: "Start Node.js application"
@@ -41,33 +41,33 @@ actions:
 
   stop:
     description: "Stop Node.js application"
-    template: "pkill -f {{sai_package(0, 'name', 'npm')}}"
+    template: "pkill -f {{sai_package(0, 'package_name', 'npm')}}"
 
   restart:
     description: "Restart Node.js application"
     steps:
       - name: "stop-app"
-        command: "pkill -f {{sai_package(0, 'name', 'npm')}}"
+        command: "pkill -f {{sai_package(0, 'package_name', 'npm')}}"
         ignore_failure: true
       - name: "start-app"
         command: "{{sai_command(0, 'path', 'npm')}}"
 
   status:
     description: "Check application status"
-    template: "pgrep -f {{sai_package(0, 'name', 'npm')}}"
+    template: "pgrep -f {{sai_package(0, 'package_name', 'npm')}}"
 
   info:
     description: "Show package information"
-    template: "npm info {{sai_package(0, 'name', 'npm')}}"
+    template: "npm info {{sai_package(0, 'package_name', 'npm')}}"
 
   search:
     description: "Search for packages"
-    template: "npm search {{sai_package(0, 'name', 'npm')}}"
+    template: "npm search {{sai_package(0, 'package_name', 'npm')}}"
 
   list:
     description: "List installed packages"
-    template: "npm list -g | grep {{sai_package(0, 'name', 'npm')}}"
+    template: "npm list -g | grep {{sai_package(0, 'package_name', 'npm')}}"
 
   version:
     description: "Show package version"
-    template: "npm list -g {{sai_package(0, 'name', 'npm')}} --depth=0"
+    template: "npm list -g {{sai_package(0, 'package_name', 'npm')}} --depth=0"

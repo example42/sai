@@ -18,19 +18,19 @@ actions:
         command: "emerge --sync"
         timeout: 300
       - name: "install-packages"
-        command: "emerge {{sai_package('*', 'name', 'emerge')}}"
+        command: "emerge {{sai_package('*', 'package_name', 'emerge')}}"
         timeout: 3600
     validation:
-      command: "qlist -I | grep {{sai_package(0, 'name', 'emerge')}}"
+      command: "qlist -I | grep {{sai_package(0, 'package_name', 'emerge')}}"
       expected_exit_code: 0
-    rollback: "emerge --unmerge {{sai_package('*', 'name', 'emerge')}}"
+    rollback: "emerge --unmerge {{sai_package('*', 'package_name', 'emerge')}}"
 
   uninstall:
     description: "Remove packages via Emerge"
-    template: "emerge --unmerge {{sai_package('*', 'name', 'emerge')}}"
-    detection: "emerge --search {{sai_package(0, 'name', 'emerge')}} >/dev/null 2>&1"
+    template: "emerge --unmerge {{sai_package('*', 'package_name', 'emerge')}}"
+    detection: "emerge --search {{sai_package(0, 'package_name', 'emerge')}} >/dev/null 2>&1"
     validation:
-      command: "! qlist -I | grep {{sai_package(0, 'name', 'emerge')}}"
+      command: "! qlist -I | grep {{sai_package(0, 'package_name', 'emerge')}}"
       expected_exit_code: 0
 
   upgrade:
@@ -40,9 +40,9 @@ actions:
         command: "emerge --sync"
         timeout: 300
       - name: "upgrade-packages"
-        command: "emerge -u {{sai_package('*', 'name', 'emerge')}}"
+        command: "emerge -u {{sai_package('*', 'package_name', 'emerge')}}"
         timeout: 3600
-    detection: "emerge --search {{sai_package(0, 'name', 'emerge')}} >/dev/null 2>&1"
+    detection: "emerge --search {{sai_package(0, 'package_name', 'emerge')}} >/dev/null 2>&1"
 
   start:
     description: "Start service via rc-service"
@@ -80,16 +80,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "emerge --info {{sai_package(0, 'name', 'emerge')}}"
+    template: "emerge --info {{sai_package(0, 'package_name', 'emerge')}}"
 
   search:
     description: "Search for packages"
-    template: "emerge --search {{sai_package(0, 'name', 'emerge')}}"
+    template: "emerge --search {{sai_package(0, 'package_name', 'emerge')}}"
 
   list:
     description: "List installed packages"
-    template: "qlist -I | grep {{sai_package(0, 'name', 'emerge')}}"
+    template: "qlist -I | grep {{sai_package(0, 'package_name', 'emerge')}}"
 
   version:
     description: "Show package version"
-    template: "qlist -I {{sai_package(0, 'name', 'emerge')}} | head -1"
+    template: "qlist -I {{sai_package(0, 'package_name', 'emerge')}} | head -1"

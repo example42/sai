@@ -13,22 +13,22 @@ provider:
 actions:
   install:
     description: "Install packages via Gradle"
-    template: "gradle build --include-build {{sai_package(0, 'name', 'gradle')}}"
+    template: "gradle build --include-build {{sai_package(0, 'package_name', 'gradle')}}"
     timeout: 600
-    detection: "gradle dependencies | grep {{sai_package(0, 'name', 'gradle')}} >/dev/null 2>&1"
+    detection: "gradle dependencies | grep {{sai_package(0, 'package_name', 'gradle')}} >/dev/null 2>&1"
     validation:
-      command: "find {{gradle_cache}} -name '*{{sai_package(0, 'name', 'gradle')}}*' -type f"
+      command: "find {{gradle_cache}} -name '*{{sai_package(0, 'package_name', 'gradle')}}*' -type f"
       expected_exit_code: 0
-    rollback: "rm -rf {{gradle_cache}}/{{sai_package(0, 'name', 'gradle')}}"
+    rollback: "rm -rf {{gradle_cache}}/{{sai_package(0, 'package_name', 'gradle')}}"
     variables:
       gradle_cache: "~/.gradle/caches"
 
   uninstall:
     description: "Remove packages via Gradle"
-    template: "rm -rf {{gradle_cache}}/{{sai_package(0, 'name', 'gradle')}}"
-    detection: "gradle dependencies | grep {{sai_package(0, 'name', 'gradle')}} >/dev/null 2>&1"
+    template: "rm -rf {{gradle_cache}}/{{sai_package(0, 'package_name', 'gradle')}}"
+    detection: "gradle dependencies | grep {{sai_package(0, 'package_name', 'gradle')}} >/dev/null 2>&1"
     validation:
-      command: "! find {{gradle_cache}} -name '*{{sai_package(0, 'name', 'gradle')}}*' -type f"
+      command: "! find {{gradle_cache}} -name '*{{sai_package(0, 'package_name', 'gradle')}}*' -type f"
       expected_exit_code: 0
     variables:
       gradle_cache: "~/.gradle/caches"
@@ -37,7 +37,7 @@ actions:
     description: "Upgrade packages via Gradle"
     template: "gradle build --refresh-dependencies"
     timeout: 600
-    detection: "gradle dependencies | grep {{sai_package(0, 'name', 'gradle')}} >/dev/null 2>&1"
+    detection: "gradle dependencies | grep {{sai_package(0, 'package_name', 'gradle')}} >/dev/null 2>&1"
 
   start:
     description: "Start Java application"
@@ -45,35 +45,35 @@ actions:
 
   stop:
     description: "Stop Java application"
-    template: "pkill -f {{sai_package(0, 'name', 'gradle')}}"
+    template: "pkill -f {{sai_package(0, 'package_name', 'gradle')}}"
 
   restart:
     description: "Restart Java application"
     steps:
       - name: "stop-app"
-        command: "pkill -f {{sai_package(0, 'name', 'gradle')}}"
+        command: "pkill -f {{sai_package(0, 'package_name', 'gradle')}}"
         ignore_failure: true
       - name: "start-app"
         command: "java -jar {{sai_command(0, 'path', 'gradle')}}"
 
   status:
     description: "Check application status"
-    template: "pgrep -f {{sai_package(0, 'name', 'gradle')}}"
+    template: "pgrep -f {{sai_package(0, 'package_name', 'gradle')}}"
 
   info:
     description: "Show package information"
-    template: "gradle dependencies | grep {{sai_package(0, 'name', 'gradle')}}"
+    template: "gradle dependencies | grep {{sai_package(0, 'package_name', 'gradle')}}"
 
   search:
     description: "Search for packages"
-    template: "gradle dependencies --configuration compileClasspath | grep {{sai_package(0, 'name', 'gradle')}}"
+    template: "gradle dependencies --configuration compileClasspath | grep {{sai_package(0, 'package_name', 'gradle')}}"
 
   list:
     description: "List installed packages"
-    template: "find {{gradle_cache}} -name '*{{sai_package(0, 'name', 'gradle')}}*' -type f"
+    template: "find {{gradle_cache}} -name '*{{sai_package(0, 'package_name', 'gradle')}}*' -type f"
     variables:
       gradle_cache: "~/.gradle/caches"
 
   version:
     description: "Show package version"
-    template: "gradle dependencies --configuration compileClasspath | grep '{{sai_package(0, 'name', 'gradle')}}:' | head -1"
+    template: "gradle dependencies --configuration compileClasspath | grep '{{sai_package(0, 'package_name', 'gradle')}}:' | head -1"

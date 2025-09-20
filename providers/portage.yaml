@@ -18,20 +18,20 @@ actions:
         command: "emaint sync -a"
         timeout: 300
       - name: "install-packages"
-        command: "emerge {{sai_package('*', 'name', 'portage')}}"
+        command: "emerge {{sai_package('*', 'package_name', 'portage')}}"
         timeout: 3600
-    detection: "equery list {{sai_package(0, 'name', 'portage')}} >/dev/null 2>&1"
+    detection: "equery list {{sai_package(0, 'package_name', 'portage')}} >/dev/null 2>&1"
     validation:
-      command: "equery list {{sai_package(0, 'name', 'portage')}}"
+      command: "equery list {{sai_package(0, 'package_name', 'portage')}}"
       expected_exit_code: 0
-    rollback: "emerge --depclean {{sai_package('*', 'name', 'portage')}}"
+    rollback: "emerge --depclean {{sai_package('*', 'package_name', 'portage')}}"
 
   uninstall:
     description: "Remove packages via Portage"
-    template: "emerge --depclean {{sai_package('*', 'name', 'portage')}}"
-    detection: "equery list {{sai_package(0, 'name', 'portage')}} >/dev/null 2>&1"
+    template: "emerge --depclean {{sai_package('*', 'package_name', 'portage')}}"
+    detection: "equery list {{sai_package(0, 'package_name', 'portage')}} >/dev/null 2>&1"
     validation:
-      command: "! equery list {{sai_package(0, 'name', 'portage')}}"
+      command: "! equery list {{sai_package(0, 'package_name', 'portage')}}"
       expected_exit_code: 0
 
   upgrade:
@@ -41,9 +41,9 @@ actions:
         command: "emaint sync -a"
         timeout: 300
       - name: "upgrade-packages"
-        command: "emerge -uDN {{sai_package('*', 'name', 'portage')}}"
+        command: "emerge -uDN {{sai_package('*', 'package_name', 'portage')}}"
         timeout: 3600
-    detection: "equery list {{sai_package(0, 'name', 'portage')}} >/dev/null 2>&1"
+    detection: "equery list {{sai_package(0, 'package_name', 'portage')}} >/dev/null 2>&1"
 
   start:
     description: "Start service via rc-service"
@@ -81,16 +81,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "equery meta {{sai_package(0, 'name', 'portage')}}"
+    template: "equery meta {{sai_package(0, 'package_name', 'portage')}}"
 
   search:
     description: "Search for packages"
-    template: "equery list -p {{sai_package(0, 'name', 'portage')}}"
+    template: "equery list -p {{sai_package(0, 'package_name', 'portage')}}"
 
   list:
     description: "List installed packages"
-    template: "equery list {{sai_package(0, 'name', 'portage')}}"
+    template: "equery list {{sai_package(0, 'package_name', 'portage')}}"
 
   version:
     description: "Show package version"
-    template: "equery list {{sai_package(0, 'name', 'portage')}} | head -1"
+    template: "equery list {{sai_package(0, 'package_name', 'portage')}} | head -1"

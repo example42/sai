@@ -109,7 +109,14 @@
     "package": {
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
+        "name": { 
+          "type": "string",
+          "description": "Logical name used as key for OS overrides and provider-specific configurations"
+        },
+        "package_name": { 
+          "type": "string",
+          "description": "Actual package name used by package managers and providers"
+        },
         "version": { "type": "string" },
         "alternatives": { "type": "array", "items": { "type": "string" } },
         "install_options": { "type": "string" },
@@ -118,7 +125,7 @@
         "signature": { "type": "string" },
         "download_url": { "type": "string" }
       },
-      "required": ["name"]
+      "required": ["name", "package_name"]
     },
     "service": {
       "type": "object",

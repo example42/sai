@@ -13,20 +13,20 @@ provider:
 actions:
   install:
     description: "Install packages from Nixpkgs"
-    template: "nix-env -f '<nixpkgs>' -iA {{sai_package(0, 'name', 'nixpkgs')}}"
+    template: "nix-env -f '<nixpkgs>' -iA {{sai_package(0, 'package_name', 'nixpkgs')}}"
     timeout: 600
-    detection: "nix-env -q | grep {{sai_package(0, 'name', 'nixpkgs')}} >/dev/null 2>&1"
+    detection: "nix-env -q | grep {{sai_package(0, 'package_name', 'nixpkgs')}} >/dev/null 2>&1"
     validation:
-      command: "nix-env -q | grep {{sai_package(0, 'name', 'nixpkgs')}}"
+      command: "nix-env -q | grep {{sai_package(0, 'package_name', 'nixpkgs')}}"
       expected_exit_code: 0
-    rollback: "nix-env -e {{sai_package('*', 'name', 'nixpkgs')}}"
+    rollback: "nix-env -e {{sai_package('*', 'package_name', 'nixpkgs')}}"
 
   uninstall:
     description: "Remove packages from Nixpkgs"
-    template: "nix-env -e {{sai_package('*', 'name', 'nixpkgs')}}"
-    detection: "nix-env -q | grep {{sai_package(0, 'name', 'nixpkgs')}} >/dev/null 2>&1"
+    template: "nix-env -e {{sai_package('*', 'package_name', 'nixpkgs')}}"
+    detection: "nix-env -q | grep {{sai_package(0, 'package_name', 'nixpkgs')}} >/dev/null 2>&1"
     validation:
-      command: "! nix-env -q | grep {{sai_package(0, 'name', 'nixpkgs')}}"
+      command: "! nix-env -q | grep {{sai_package(0, 'package_name', 'nixpkgs')}}"
       expected_exit_code: 0
 
   upgrade:
@@ -35,9 +35,9 @@ actions:
       - name: "update-channel"
         command: "nix-channel --update"
       - name: "upgrade-packages"
-        command: "nix-env -u {{sai_package('*', 'name', 'nixpkgs')}}"
+        command: "nix-env -u {{sai_package('*', 'package_name', 'nixpkgs')}}"
     timeout: 600
-    detection: "nix-env -q | grep {{sai_package(0, 'name', 'nixpkgs')}} >/dev/null 2>&1"
+    detection: "nix-env -q | grep {{sai_package(0, 'package_name', 'nixpkgs')}} >/dev/null 2>&1"
 
   start:
     description: "Start service via systemctl"
@@ -75,16 +75,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "nix-env -f '<nixpkgs>' -qa --description {{sai_package(0, 'name', 'nixpkgs')}}"
+    template: "nix-env -f '<nixpkgs>' -qa --description {{sai_package(0, 'package_name', 'nixpkgs')}}"
 
   search:
     description: "Search for packages"
-    template: "nix-env -f '<nixpkgs>' -qa | grep {{sai_package(0, 'name', 'nixpkgs')}}"
+    template: "nix-env -f '<nixpkgs>' -qa | grep {{sai_package(0, 'package_name', 'nixpkgs')}}"
 
   list:
     description: "List installed packages"
-    template: "nix-env -q | grep {{sai_package(0, 'name', 'nixpkgs')}}"
+    template: "nix-env -q | grep {{sai_package(0, 'package_name', 'nixpkgs')}}"
 
   version:
     description: "Show package version"
-    template: "nix-env -q {{sai_package(0, 'name', 'nixpkgs')}}"
+    template: "nix-env -q {{sai_package(0, 'package_name', 'nixpkgs')}}"

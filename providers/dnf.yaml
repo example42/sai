@@ -13,27 +13,27 @@ provider:
 actions:
   install:
     description: "Install packages via DNF"
-    template: "dnf install -y {{sai_package('*', 'name', 'dnf')}}"
+    template: "dnf install -y {{sai_package('*', 'package_name', 'dnf')}}"
     timeout: 600
-    detection: "dnf info {{sai_package(0, 'name', 'dnf')}} >/dev/null 2>&1"
+    detection: "dnf info {{sai_package(0, 'package_name', 'dnf')}} >/dev/null 2>&1"
     validation:
-      command: "rpm -qa | grep {{sai_package(0, 'name', 'dnf')}}"
+      command: "rpm -qa | grep {{sai_package(0, 'package_name', 'dnf')}}"
       expected_exit_code: 0
-    rollback: "dnf remove -y {{sai_package('*', 'name', 'dnf')}}"
+    rollback: "dnf remove -y {{sai_package('*', 'package_name', 'dnf')}}"
 
   uninstall:
     description: "Remove packages via DNF"
-    template: "dnf remove -y {{sai_package('*', 'name', 'dnf')}}"
-    detection: "rpm -qa | grep -q {{sai_package(0, 'name', 'dnf')}}"
+    template: "dnf remove -y {{sai_package('*', 'package_name', 'dnf')}}"
+    detection: "rpm -qa | grep -q {{sai_package(0, 'package_name', 'dnf')}}"
     validation:
-      command: "! rpm -qa | grep {{sai_package(0, 'name', 'dnf')}}"
+      command: "! rpm -qa | grep {{sai_package(0, 'package_name', 'dnf')}}"
       expected_exit_code: 0
 
   upgrade:
     description: "Upgrade packages via DNF"
-    template: "dnf upgrade -y {{sai_package('*', 'name', 'dnf')}}"
+    template: "dnf upgrade -y {{sai_package('*', 'package_name', 'dnf')}}"
     timeout: 600
-    detection: "rpm -qa | grep -q {{sai_package(0, 'name', 'dnf')}}"
+    detection: "rpm -qa | grep -q {{sai_package(0, 'package_name', 'dnf')}}"
 
   start:
     description: "Start service via systemctl"
@@ -71,16 +71,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "dnf info {{sai_package(0, 'name', 'dnf')}}"
+    template: "dnf info {{sai_package(0, 'package_name', 'dnf')}}"
 
   search:
     description: "Search for packages"
-    template: "dnf search {{sai_package(0, 'name', 'dnf')}}"
+    template: "dnf search {{sai_package(0, 'package_name', 'dnf')}}"
 
   list:
     description: "List installed packages"
-    template: "rpm -qa | grep {{sai_package(0, 'name', 'dnf')}}"
+    template: "rpm -qa | grep {{sai_package(0, 'package_name', 'dnf')}}"
 
   version:
     description: "Show package version"
-    template: "rpm -q {{sai_package(0, 'name', 'dnf')}} --queryformat '%{NAME} %{VERSION}-%{RELEASE}'"
+    template: "rpm -q {{sai_package(0, 'package_name', 'dnf')}} --queryformat '%{NAME} %{VERSION}-%{RELEASE}'"

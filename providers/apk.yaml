@@ -17,19 +17,19 @@ actions:
       - name: "update-index"
         command: "apk update"
       - name: "install-packages"
-        command: "apk add {{sai_package('*', 'name', 'apk')}}"
+        command: "apk add {{sai_package('*', 'package_name', 'apk')}}"
     timeout: 300
     validation:
-      command: "apk info | grep {{sai_package(0, 'name', 'apk')}}"
+      command: "apk info | grep {{sai_package(0, 'package_name', 'apk')}}"
       expected_exit_code: 0
-    rollback: "apk del {{sai_package('*', 'name', 'apk')}}"
+    rollback: "apk del {{sai_package('*', 'package_name', 'apk')}}"
 
   uninstall:
     description: "Remove packages via APK"
-    template: "apk del {{sai_package('*', 'name', 'apk')}}"
-    detection: "apk info {{sai_package(0, 'name', 'apk')}} >/dev/null 2>&1"
+    template: "apk del {{sai_package('*', 'package_name', 'apk')}}"
+    detection: "apk info {{sai_package(0, 'package_name', 'apk')}} >/dev/null 2>&1"
     validation:
-      command: "! apk info | grep {{sai_package(0, 'name', 'apk')}}"
+      command: "! apk info | grep {{sai_package(0, 'package_name', 'apk')}}"
       expected_exit_code: 0
 
   upgrade:
@@ -38,9 +38,9 @@ actions:
       - name: "update-index"
         command: "apk update"
       - name: "upgrade-packages"
-        command: "apk upgrade {{sai_package('*', 'name', 'apk')}}"
+        command: "apk upgrade {{sai_package('*', 'package_name', 'apk')}}"
     timeout: 300
-    detection: "apk info {{sai_package(0, 'name', 'apk')}} >/dev/null 2>&1"
+    detection: "apk info {{sai_package(0, 'package_name', 'apk')}} >/dev/null 2>&1"
 
   start:
     description: "Start service via rc-service"
@@ -78,16 +78,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "apk info {{sai_package(0, 'name', 'apk')}}"
+    template: "apk info {{sai_package(0, 'package_name', 'apk')}}"
 
   search:
     description: "Search for packages"
-    template: "apk search {{sai_package(0, 'name', 'apk')}}"
+    template: "apk search {{sai_package(0, 'package_name', 'apk')}}"
 
   list:
     description: "List installed packages"
-    template: "apk info | grep {{sai_package(0, 'name', 'apk')}}"
+    template: "apk info | grep {{sai_package(0, 'package_name', 'apk')}}"
 
   version:
     description: "Show package version"
-    template: "apk info {{sai_package(0, 'name', 'apk')}} | grep '^{{sai_package(0, 'name', 'apk')}}-' | head -1"
+    template: "apk info {{sai_package(0, 'package_name', 'apk')}} | grep '^{{sai_package(0, 'package_name', 'apk')}}-' | head -1"

@@ -13,20 +13,20 @@ provider:
 actions:
   install:
     description: "Install packages via Guix"
-    template: "guix install {{sai_package('*', 'name', 'guix')}}"
+    template: "guix install {{sai_package('*', 'package_name', 'guix')}}"
     timeout: 600
-    detection: "guix package -I | grep {{sai_package(0, 'name', 'guix')}} >/dev/null 2>&1"
+    detection: "guix package -I | grep {{sai_package(0, 'package_name', 'guix')}} >/dev/null 2>&1"
     validation:
-      command: "guix package -I | grep {{sai_package(0, 'name', 'guix')}}"
+      command: "guix package -I | grep {{sai_package(0, 'package_name', 'guix')}}"
       expected_exit_code: 0
-    rollback: "guix remove {{sai_package('*', 'name', 'guix')}}"
+    rollback: "guix remove {{sai_package('*', 'package_name', 'guix')}}"
 
   uninstall:
     description: "Remove packages via Guix"
-    template: "guix remove {{sai_package('*', 'name', 'guix')}}"
-    detection: "guix package -I | grep {{sai_package(0, 'name', 'guix')}} >/dev/null 2>&1"
+    template: "guix remove {{sai_package('*', 'package_name', 'guix')}}"
+    detection: "guix package -I | grep {{sai_package(0, 'package_name', 'guix')}} >/dev/null 2>&1"
     validation:
-      command: "! guix package -I | grep {{sai_package(0, 'name', 'guix')}}"
+      command: "! guix package -I | grep {{sai_package(0, 'package_name', 'guix')}}"
       expected_exit_code: 0
 
   upgrade:
@@ -36,9 +36,9 @@ actions:
         command: "guix pull"
         timeout: 300
       - name: "upgrade-packages"
-        command: "guix upgrade {{sai_package('*', 'name', 'guix')}}"
+        command: "guix upgrade {{sai_package('*', 'package_name', 'guix')}}"
     timeout: 600
-    detection: "guix package -I | grep {{sai_package(0, 'name', 'guix')}} >/dev/null 2>&1"
+    detection: "guix package -I | grep {{sai_package(0, 'package_name', 'guix')}} >/dev/null 2>&1"
 
   start:
     description: "Start service via herd"
@@ -76,16 +76,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "guix show {{sai_package(0, 'name', 'guix')}}"
+    template: "guix show {{sai_package(0, 'package_name', 'guix')}}"
 
   search:
     description: "Search for packages"
-    template: "guix search {{sai_package(0, 'name', 'guix')}}"
+    template: "guix search {{sai_package(0, 'package_name', 'guix')}}"
 
   list:
     description: "List installed packages"
-    template: "guix package -I | grep {{sai_package(0, 'name', 'guix')}}"
+    template: "guix package -I | grep {{sai_package(0, 'package_name', 'guix')}}"
 
   version:
     description: "Show package version"
-    template: "guix package -I | grep {{sai_package(0, 'name', 'guix')}} | awk '{print $1\"@\"$2}'"
+    template: "guix package -I | grep {{sai_package(0, 'package_name', 'guix')}} | awk '{print $1\"@\"$2}'"

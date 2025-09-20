@@ -307,13 +307,43 @@ func (rm *RepositoryManager) UpdateRepository() error {
 func (rm *RepositoryManager) gitPull() error {
 	fmt.Println("🔄 Updating saidata repository (git-based)...")
 	
-	cmd := exec.Command("git", "pull")
-	cmd.Dir = rm.localPath
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// First, fetch the latest changes
+	fetchCmd := exec.Command("git", "fetch", "origin")
+	fetchCmd.Dir = rm.localPath
+	fetchCmd.Stdout = os.Stdout
+	fetchCmd.Stderr = os.Stderr
 	
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git pull failed: %w", err)
+	if err := fetchCmd.Run(); err != nil {
+		return fmt.Errorf("git fetch failed: %w", err)
+	}
+	
+	// Reset to origin/main to ensure we always use the remote main branch
+	// This handles divergent branches by discarding local changes
+	resetCmd := exec.Command("git", "reset", "--hard", "origin/main")
+	resetCmd.Dir = rm.localPath
+	resetCmd.Stdout = os.Stdout
+	resetCmd.Stderr = os.Stderr
+	
+	if err := resetCmd.Run(); err != nil {
+		return fmt.Errorf("git reset failed: %w", err)
+	}
+	
+	// Ensure we're on the main branch
+	checkoutCmd := exec.Command("git", "checkout", "main")
+	checkoutCmd.Dir = rm.localPath
+	checkoutCmd.Stdout = os.Stdout
+	checkoutCmd.Stderr = os.Stderr
+	
+	if err := checkoutCmd.Run(); err != nil {
+		// If main doesn't exist locally, create it tracking origin/main
+		createCmd := exec.Command("git", "checkout", "-b", "main", "origin/main")
+		createCmd.Dir = rm.localPath
+		createCmd.Stdout = os.Stdout
+		createCmd.Stderr = os.Stderr
+		
+		if err := createCmd.Run(); err != nil {
+			return fmt.Errorf("git checkout failed: %w", err)
+		}
 	}
 	
 	fmt.Println("✅ Repository updated successfully!")
@@ -363,9 +393,20 @@ func (rm *RepositoryManager) GetRepositoryStatus() (*RepositoryStatus, error) {
 	return status, nil
 }
 
-// SynchronizeRepository synchronizes the repository (alias for UpdateRepository)
+// SynchronizeRepository synchronizes the repository with remote main branch
 func (rm *RepositoryManager) SynchronizeRepository() error {
-	return rm.UpdateRepository()
+	if !rm.repositoryExists() {
+		return fmt.Errorf("repository not initialized, run 'sai saidata init' first")
+	}
+	
+	// For git repositories, force sync to main branch
+	if rm.isGitRepository() {
+		return rm.gitPull()
+	}
+	
+	// For zip-based repositories, re-download
+	fmt.Println("🔄 Synchronizing saidata repository (zip-based)...")
+	return rm.zipDownload()
 }
 
 // ValidateRepository validates the repository structure and content

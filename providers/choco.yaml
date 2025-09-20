@@ -13,27 +13,27 @@ provider:
 actions:
   install:
     description: "Install packages via Chocolatey"
-    template: "choco install {{sai_package('*', 'name', 'choco')}} -y"
+    template: "choco install {{sai_package('*', 'package_name', 'choco')}} -y"
     timeout: 600
-    detection: "choco info {{sai_package(0, 'name', 'choco')}} >/dev/null 2>&1"
+    detection: "choco info {{sai_package(0, 'package_name', 'choco')}} >/dev/null 2>&1"
     validation:
-      command: "choco list --local-only | findstr {{sai_package(0, 'name', 'choco')}}"
+      command: "choco list --local-only | findstr {{sai_package(0, 'package_name', 'choco')}}"
       expected_exit_code: 0
-    rollback: "choco uninstall {{sai_package('*', 'name', 'choco')}} -y"
+    rollback: "choco uninstall {{sai_package('*', 'package_name', 'choco')}} -y"
 
   uninstall:
     description: "Remove packages via Chocolatey"
-    template: "choco uninstall {{sai_package('*', 'name', 'choco')}} -y"
-    detection: "choco info {{sai_package(0, 'name', 'choco')}} >/dev/null 2>&1"
+    template: "choco uninstall {{sai_package('*', 'package_name', 'choco')}} -y"
+    detection: "choco info {{sai_package(0, 'package_name', 'choco')}} >/dev/null 2>&1"
     validation:
-      command: "choco list --local-only | findstr {{sai_package(0, 'name', 'choco')}} || exit 1"
+      command: "choco list --local-only | findstr {{sai_package(0, 'package_name', 'choco')}} || exit 1"
       expected_exit_code: 1
 
   upgrade:
     description: "Upgrade packages via Chocolatey"
-    template: "choco upgrade {{sai_package('*', 'name', 'choco')}} -y"
+    template: "choco upgrade {{sai_package('*', 'package_name', 'choco')}} -y"
     timeout: 600
-    detection: "choco info {{sai_package(0, 'name', 'choco')}} >/dev/null 2>&1"
+    detection: "choco info {{sai_package(0, 'package_name', 'choco')}} >/dev/null 2>&1"
 
   start:
     description: "Start service via sc command"
@@ -71,20 +71,20 @@ actions:
 
   logs:
     description: "Show service logs"
-    template: "Get-WinEvent -LogName Application | Where-Object {$_.ProviderName -eq '{{sai_package(0, 'name', 'choco')}}'} | Select-Object -First 50"
+    template: "Get-WinEvent -LogName Application | Where-Object {$_.ProviderName -eq '{{sai_package(0, 'package_name', 'choco')}}'} | Select-Object -First 50"
 
   info:
     description: "Show package information"
-    template: "choco info {{sai_package(0, 'name', 'choco')}}"
+    template: "choco info {{sai_package(0, 'package_name', 'choco')}}"
 
   search:
     description: "Search for packages"
-    template: "choco search {{sai_package(0, 'name', 'choco')}}"
+    template: "choco search {{sai_package(0, 'package_name', 'choco')}}"
 
   list:
     description: "List installed packages"
-    template: "choco list --local-only | findstr {{sai_package(0, 'name', 'choco')}}"
+    template: "choco list --local-only | findstr {{sai_package(0, 'package_name', 'choco')}}"
 
   version:
     description: "Show package version"
-    template: "choco list --local-only --exact {{sai_package(0, 'name', 'choco')}}"
+    template: "choco list --local-only --exact {{sai_package(0, 'package_name', 'choco')}}"

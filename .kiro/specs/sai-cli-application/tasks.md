@@ -80,9 +80,9 @@
 
 ## Phase 4: Data Structure Consistency
 
-- [ ] 10. Standardize package naming across all components
-  - Update saidata-0.2-schema.json to require package_name field for packages
-  - Update all existing saidata samples to use package_name instead of name
+- [x] 10. Standardize package naming across all components
+  - Update saidata-0.2-schema.json to add package_name field for packages
+  - Update all existing saidata samples to add package_name (name is key to use for os overrides, package_name is the actual package name)
   - Update all provider templates to reference package_name consistently
   - Update template functions to use package_name field for package resolution
   - Verify all existing providers work with updated package_name structure

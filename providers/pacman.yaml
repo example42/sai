@@ -13,20 +13,20 @@ provider:
 actions:
   install:
     description: "Install packages via Pacman"
-    template: "pacman -S --noconfirm {{sai_package('*', 'name', 'pacman')}}"
+    template: "pacman -S --noconfirm {{sai_package('*', 'package_name', 'pacman')}}"
     timeout: 600
-    detection: "pacman -Si {{sai_package(0, 'name', 'pacman')}} >/dev/null 2>&1"
+    detection: "pacman -Si {{sai_package(0, 'package_name', 'pacman')}} >/dev/null 2>&1"
     validation:
-      command: "pacman -Q | grep {{sai_package(0, 'name', 'pacman')}}"
+      command: "pacman -Q | grep {{sai_package(0, 'package_name', 'pacman')}}"
       expected_exit_code: 0
-    rollback: "pacman -R --noconfirm {{sai_package('*', 'name', 'pacman')}}"
+    rollback: "pacman -R --noconfirm {{sai_package('*', 'package_name', 'pacman')}}"
 
   uninstall:
     description: "Remove packages via Pacman"
-    template: "pacman -R --noconfirm {{sai_package('*', 'name', 'pacman')}}"
-    detection: "pacman -Si {{sai_package(0, 'name', 'pacman')}} >/dev/null 2>&1"
+    template: "pacman -R --noconfirm {{sai_package('*', 'package_name', 'pacman')}}"
+    detection: "pacman -Si {{sai_package(0, 'package_name', 'pacman')}} >/dev/null 2>&1"
     validation:
-      command: "! pacman -Q | grep {{sai_package(0, 'name', 'pacman')}}"
+      command: "! pacman -Q | grep {{sai_package(0, 'package_name', 'pacman')}}"
       expected_exit_code: 0
 
   upgrade:
@@ -35,7 +35,7 @@ actions:
       - name: "sync-database"
         command: "pacman -Sy"
       - name: "upgrade-packages"
-        command: "pacman -S --noconfirm {{sai_package('*', 'name', 'pacman')}}"
+        command: "pacman -S --noconfirm {{sai_package('*', 'package_name', 'pacman')}}"
     timeout: 600
 
   start:
@@ -74,16 +74,16 @@ actions:
 
   info:
     description: "Show package information"
-    template: "pacman -Si {{sai_package(0, 'name', 'pacman')}}"
+    template: "pacman -Si {{sai_package(0, 'package_name', 'pacman')}}"
 
   search:
     description: "Search for packages"
-    template: "pacman -Ss {{sai_package(0, 'name', 'pacman')}}"
+    template: "pacman -Ss {{sai_package(0, 'package_name', 'pacman')}}"
 
   list:
     description: "List installed packages"
-    template: "pacman -Q | grep {{sai_package(0, 'name', 'pacman')}}"
+    template: "pacman -Q | grep {{sai_package(0, 'package_name', 'pacman')}}"
 
   version:
     description: "Show package version"
-    template: "pacman -Q {{sai_package(0, 'name', 'pacman')}}"
+    template: "pacman -Q {{sai_package(0, 'package_name', 'pacman')}}"

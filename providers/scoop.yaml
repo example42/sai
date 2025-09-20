@@ -13,27 +13,27 @@ provider:
 actions:
   install:
     description: "Install packages via Scoop"
-    template: "scoop install {{sai_package('*', 'name', 'scoop')}}"
+    template: "scoop install {{sai_package('*', 'package_name', 'scoop')}}"
     timeout: 600
-    detection: "scoop info {{sai_package(0, 'name', 'scoop')}} >/dev/null 2>&1"
+    detection: "scoop info {{sai_package(0, 'package_name', 'scoop')}} >/dev/null 2>&1"
     validation:
-      command: "scoop list | findstr {{sai_package(0, 'name', 'scoop')}}"
+      command: "scoop list | findstr {{sai_package(0, 'package_name', 'scoop')}}"
       expected_exit_code: 0
-    rollback: "scoop uninstall {{sai_package('*', 'name', 'scoop')}}"
+    rollback: "scoop uninstall {{sai_package('*', 'package_name', 'scoop')}}"
 
   uninstall:
     description: "Remove packages via Scoop"
-    template: "scoop uninstall {{sai_package('*', 'name', 'scoop')}}"
-    detection: "scoop info {{sai_package(0, 'name', 'scoop')}} >/dev/null 2>&1"
+    template: "scoop uninstall {{sai_package('*', 'package_name', 'scoop')}}"
+    detection: "scoop info {{sai_package(0, 'package_name', 'scoop')}} >/dev/null 2>&1"
     validation:
-      command: "scoop list | findstr {{sai_package(0, 'name', 'scoop')}} || exit 1"
+      command: "scoop list | findstr {{sai_package(0, 'package_name', 'scoop')}} || exit 1"
       expected_exit_code: 1
 
   upgrade:
     description: "Upgrade packages via Scoop"
-    template: "scoop update {{sai_package('*', 'name', 'scoop')}}"
+    template: "scoop update {{sai_package('*', 'package_name', 'scoop')}}"
     timeout: 600
-    detection: "scoop info {{sai_package(0, 'name', 'scoop')}} >/dev/null 2>&1"
+    detection: "scoop info {{sai_package(0, 'package_name', 'scoop')}} >/dev/null 2>&1"
 
   start:
     description: "Start application"
@@ -41,33 +41,33 @@ actions:
 
   stop:
     description: "Stop application"
-    template: "taskkill /F /IM {{sai_package(0, 'name', 'scoop')}}.exe"
+    template: "taskkill /F /IM {{sai_package(0, 'package_name', 'scoop')}}.exe"
 
   restart:
     description: "Restart application"
     steps:
       - name: "stop-app"
-        command: "taskkill /F /IM {{sai_package(0, 'name', 'scoop')}}.exe"
+        command: "taskkill /F /IM {{sai_package(0, 'package_name', 'scoop')}}.exe"
         ignore_failure: true
       - name: "start-app"
         command: "{{sai_command(0, 'path', 'scoop')}}"
 
   status:
     description: "Check application status"
-    template: "tasklist | findstr {{sai_package(0, 'name', 'scoop')}}.exe"
+    template: "tasklist | findstr {{sai_package(0, 'package_name', 'scoop')}}.exe"
 
   info:
     description: "Show package information"
-    template: "scoop info {{sai_package(0, 'name', 'scoop')}}"
+    template: "scoop info {{sai_package(0, 'package_name', 'scoop')}}"
 
   search:
     description: "Search for packages"
-    template: "scoop search {{sai_package(0, 'name', 'scoop')}}"
+    template: "scoop search {{sai_package(0, 'package_name', 'scoop')}}"
 
   list:
     description: "List installed packages"
-    template: "scoop list | findstr {{sai_package(0, 'name', 'scoop')}}"
+    template: "scoop list | findstr {{sai_package(0, 'package_name', 'scoop')}}"
 
   version:
     description: "Show package version"
-    template: "scoop list {{sai_package(0, 'name', 'scoop')}}"
+    template: "scoop list {{sai_package(0, 'package_name', 'scoop')}}"
