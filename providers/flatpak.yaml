@@ -34,6 +34,9 @@ actions:
     template: "flatpak update -y {{sai_package('*', 'package_name', 'flatpak')}}"
     timeout: 900
     detection: "flatpak info {{sai_package(0, 'package_name', 'flatpak')}} >/dev/null 2>&1"
+    validation:
+      command: "flatpak list | grep {{sai_package(0, 'package_name', 'flatpak')}}"
+      expected_exit_code: 0
 
   start:
     description: "Run Flatpak application"
@@ -42,6 +45,7 @@ actions:
   stop:
     description: "Kill Flatpak application"
     template: "flatpak kill {{sai_package(0, 'package_name', 'flatpak')}}"
+
 
   info:
     description: "Show Flatpak application information"

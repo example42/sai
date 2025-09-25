@@ -8,7 +8,7 @@ provider:
   type: "package_manager"
   platforms: ["windows"]
   executable: "winget"  # Main executable for availability detection
-  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version"]
 
 actions:
   install:
@@ -35,43 +35,7 @@ actions:
     timeout: 600
     detection: "winget show {{sai_package(0, 'package_name', 'winget')}} >/dev/null 2>&1"
 
-  start:
-    description: "Start service via sc command"
-    template: "sc start {{sai_service(0, 'service_name', 'winget')}}"
-    validation:
-      command: "sc query {{sai_service(0, 'service_name', 'winget')}} | findstr RUNNING"
-      expected_exit_code: 0
 
-  stop:
-    description: "Stop service via sc command"
-    template: "sc stop {{sai_service(0, 'service_name', 'winget')}}"
-    validation:
-      command: "sc query {{sai_service(0, 'service_name', 'winget')}} | findstr STOPPED"
-      expected_exit_code: 0
-
-  restart:
-    description: "Restart service via sc command"
-    steps:
-      - name: "stop-service"
-        command: "sc stop {{sai_service(0, 'service_name', 'winget')}}"
-      - name: "start-service"
-        command: "sc start {{sai_service(0, 'service_name', 'winget')}}"
-
-  enable:
-    description: "Enable service auto-start"
-    template: "sc config {{sai_service(0, 'service_name', 'winget')}} start= auto"
-
-  disable:
-    description: "Disable service auto-start"
-    template: "sc config {{sai_service(0, 'service_name', 'winget')}} start= disabled"
-
-  status:
-    description: "Check service status"
-    template: "sc query {{sai_service(0, 'service_name', 'winget')}}"
-
-  logs:
-    description: "Show service logs"
-    template: "Get-WinEvent -LogName Application | Where-Object {$_.ProviderName -eq '{{sai_package(0, 'package_name', 'winget')}}'} | Select-Object -First 50"
 
   info:
     description: "Show package information"

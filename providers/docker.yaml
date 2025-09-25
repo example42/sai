@@ -78,6 +78,7 @@ actions:
     description: "Show Docker container logs"
     template: "docker logs --tail 50 {{sai_container(0, 'name', 'docker')}}"
 
+
   info:
     description: "Show Docker image information"
     template: "docker inspect {{sai_container(0, 'image', 'docker')}}:{{sai_container(0, 'tag', 'docker')}}"

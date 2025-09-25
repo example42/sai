@@ -8,7 +8,7 @@ provider:
   type: "package_manager"
   platforms: ["windows"]
   executable: "scoop"  # Main executable for availability detection
-  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "status"]
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version"]
 
 actions:
   install:
@@ -35,26 +35,7 @@ actions:
     timeout: 600
     detection: "scoop info {{sai_package(0, 'package_name', 'scoop')}} >/dev/null 2>&1"
 
-  start:
-    description: "Start application"
-    template: "{{sai_command(0, 'path', 'scoop')}}"
 
-  stop:
-    description: "Stop application"
-    template: "taskkill /F /IM {{sai_package(0, 'package_name', 'scoop')}}.exe"
-
-  restart:
-    description: "Restart application"
-    steps:
-      - name: "stop-app"
-        command: "taskkill /F /IM {{sai_package(0, 'package_name', 'scoop')}}.exe"
-        ignore_failure: true
-      - name: "start-app"
-        command: "{{sai_command(0, 'path', 'scoop')}}"
-
-  status:
-    description: "Check application status"
-    template: "tasklist | findstr {{sai_package(0, 'package_name', 'scoop')}}.exe"
 
   info:
     description: "Show package information"

@@ -8,7 +8,7 @@ provider:
   type: "package_manager"
   platforms: ["guix", "linux"]
   executable: "guix"  # Main executable for availability detection
-  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version"]
 
 actions:
   install:
@@ -40,39 +40,7 @@ actions:
     timeout: 600
     detection: "guix package -I | grep {{sai_package(0, 'package_name', 'guix')}} >/dev/null 2>&1"
 
-  start:
-    description: "Start service via herd"
-    template: "herd start {{sai_service(0, 'service_name', 'guix')}}"
-    validation:
-      command: "herd status {{sai_service(0, 'service_name', 'guix')}} | grep started"
-      expected_exit_code: 0
 
-  stop:
-    description: "Stop service via herd"
-    template: "herd stop {{sai_service(0, 'service_name', 'guix')}}"
-    validation:
-      command: "herd status {{sai_service(0, 'service_name', 'guix')}} | grep stopped"
-      expected_exit_code: 0
-
-  restart:
-    description: "Restart service via herd"
-    template: "herd restart {{sai_service(0, 'service_name', 'guix')}}"
-
-  enable:
-    description: "Enable service auto-start"
-    template: "herd enable {{sai_service(0, 'service_name', 'guix')}}"
-
-  disable:
-    description: "Disable service auto-start"
-    template: "herd disable {{sai_service(0, 'service_name', 'guix')}}"
-
-  status:
-    description: "Check service status"
-    template: "herd status {{sai_service(0, 'service_name', 'guix')}}"
-
-  logs:
-    description: "Show service logs"
-    template: "tail -n 50 {{sai_file('log', 'path', 'guix')}}"
 
   info:
     description: "Show package information"
