@@ -10,22 +10,19 @@ metadata:
   tags: ["nginx", "web-server", "reverse-proxy", "load-balancer", "http"]
   license: "BSD-2-Clause"
   language: "C"
-  maintainer: "NGINX Inc."
+  maintainer: "Nginx Inc."
   urls:
     website: "https://nginx.org"
-    documentation: "https://nginx.org/en/docs"
+    documentation: "https://nginx.org/en/docs/"
     source: "https://github.com/nginx/nginx"
     issues: "https://trac.nginx.org/nginx"
     support: "https://nginx.org/en/support.html"
     download: "https://nginx.org/en/download.html"
     changelog: "https://nginx.org/en/CHANGES"
     license: "https://nginx.org/LICENSE"
-  security:
-    security_contact: "security-alert@nginx.org"
-    vulnerability_disclosure: "https://nginx.org/en/security_advisories.html"
 
 packages:
-  - name: "nginx"
+  - name: "server"
     package_name: "nginx"
     version: "1.24.0"
     alternatives: ["nginx-full", "nginx-light", "nginx-extras"]
@@ -38,31 +35,24 @@ services:
     config_files: ["/etc/nginx/nginx.conf"]
 
 files:
-  - name: "main-config"
+  - name: "config"
     path: "/etc/nginx/nginx.conf"
     type: "config"
     owner: "root"
     group: "root"
     mode: "0644"
     backup: true
-  - name: "default-site"
-    path: "/etc/nginx/sites-available/default"
-    type: "config"
+  - name: "binary"
+    path: "/usr/sbin/nginx"
+    type: "binary"
     owner: "root"
     group: "root"
-    mode: "0644"
-    backup: true
-  - name: "access-log"
-    path: "/var/log/nginx/access.log"
-    type: "log"
+    mode: "0755"
+  - name: "pid"
+    path: "/var/run/nginx.pid"
+    type: "temp"
     owner: "www-data"
-    group: "adm"
-    mode: "0644"
-  - name: "error-log"
-    path: "/var/log/nginx/error.log"
-    type: "log"
-    owner: "www-data"
-    group: "adm"
+    group: "www-data"
     mode: "0644"
 
 directories:
@@ -81,86 +71,132 @@ directories:
     owner: "root"
     group: "root"
     mode: "0755"
-  - name: "conf-d"
-    path: "/etc/nginx/conf.d"
-    owner: "root"
-    group: "root"
-    mode: "0755"
-  - name: "html"
-    path: "/var/www/html"
-    owner: "www-data"
-    group: "www-data"
-    mode: "0755"
   - name: "log"
     path: "/var/log/nginx"
     owner: "www-data"
     group: "adm"
     mode: "0755"
+  - name: "cache"
+    path: "/var/cache/nginx"
+    owner: "www-data"
+    group: "www-data"
+    mode: "0755"
+  - name: "lib"
+    path: "/var/lib/nginx"
+    owner: "www-data"
+    group: "www-data"
+    mode: "0755"
 
 commands:
   - name: "nginx"
     path: "/usr/sbin/nginx"
-    shell_completion: false
+    arguments: ["-t", "-s", "reload"]
     man_page: "nginx(8)"
 
 ports:
   - port: 80
     protocol: "tcp"
     service: "http"
-    description: "HTTP web server"
+    description: "HTTP server"
   - port: 443
     protocol: "tcp"
     service: "https"
-    description: "HTTPS web server"
+    description: "HTTPS server"
+
+sources:
+  - name: "main"
+    url: "http://nginx.org/download/nginx-{{version}}.tar.gz"
+    version: "1.24.0"
+    build_system: "autotools"
+    build_dir: "/tmp/sai-build-nginx"
+    source_dir: "/tmp/sai-build-nginx/nginx-1.24.0"
+    install_prefix: "/usr/local"
+    configure_args:
+      - "--prefix=/usr/local"
+      - "--sbin-path=/usr/local/sbin/nginx"
+      - "--conf-path=/etc/nginx/nginx.conf"
+      - "--error-log-path=/var/log/nginx/error.log"
+      - "--http-log-path=/var/log/nginx/access.log"
+      - "--pid-path=/var/run/nginx.pid"
+      - "--lock-path=/var/run/nginx.lock"
+      - "--http-client-body-temp-path=/var/cache/nginx/client_temp"
+      - "--http-proxy-temp-path=/var/cache/nginx/proxy_temp"
+      - "--http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp"
+      - "--http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp"
+      - "--http-scgi-temp-path=/var/cache/nginx/scgi_temp"
+      - "--with-http_ssl_module"
+      - "--with-http_v2_module"
+      - "--with-http_gzip_static_module"
+      - "--with-http_stub_status_module"
+      - "--with-file-aio"
+      - "--with-http_secure_link_module"
+      - "--with-http_realip_module"
+      - "--with-threads"
+    build_args:
+      - "-j$(nproc)"
+    install_args:
+      - "install"
+    prerequisites:
+      - "build-essential"
+      - "libssl-dev"
+      - "libpcre3-dev"
+      - "zlib1g-dev"
+      - "wget"
+      - "tar"
+    environment:
+      CC: "gcc"
+      CFLAGS: "-O2 -g -pipe"
+      LDFLAGS: "-Wl,-rpath,/usr/local/lib"
+    checksum: "sha256:5d0b0e8f7e8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f"
+    custom_commands:
+      download: "wget -O nginx-{{version}}.tar.gz {{url}} && echo '{{checksum}}  nginx-{{version}}.tar.gz' | sha256sum -c"
+      extract: "tar -xzf nginx-{{version}}.tar.gz"
+      configure: "./configure {{configure_args | join(' ')}}"
+      build: "make {{build_args | join(' ')}}"
+      install: "make {{install_args | join(' ')}} && mkdir -p /etc/nginx /var/log/nginx /var/cache/nginx /var/cache/nginx/client_temp /var/cache/nginx/proxy_temp /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp /var/cache/nginx/scgi_temp && chown -R www-data:www-data /var/log/nginx /var/cache/nginx"
+      uninstall: "rm -rf /usr/local/sbin/nginx /usr/local/conf/nginx* /usr/local/html /etc/nginx /var/log/nginx /var/cache/nginx && userdel -r nginx 2>/dev/null || true"
+      validation: "/usr/local/sbin/nginx -t && /usr/local/sbin/nginx -v"
+      version: "/usr/local/sbin/nginx -v 2>&1 | grep -o 'nginx/[0-9.]*'"
 
 providers:
   apt:
     repositories:
-      - name: "nginx-official"
-        url: "https://nginx.org/packages/ubuntu"
-        key: "https://nginx.org/keys/nginx_signing.key"
-        type: "upstream"
-        recommended: true
-        packages:
-          - name: "nginx"
-            package_name: "nginx"
-            version: "1.24.0-1~jammy"
       - name: "ubuntu-default"
         type: "os-default"
         packages:
-          - name: "nginx"
+          - name: "server"
             package_name: "nginx"
             alternatives: ["nginx-full", "nginx-light", "nginx-extras"]
-        notes: "Ubuntu maintained packages with additional modules"
+        recommended: true
+      - name: "nginx-official"
+        url: "http://nginx.org/packages/ubuntu/"
+        key: "https://nginx.org/keys/nginx_signing.key"
+        type: "upstream"
+        packages:
+          - name: "server"
+            package_name: "nginx"
+            version: "1.24.0"
 
   dnf:
     repositories:
+      - name: "fedora-default"
+        type: "os-default"
+        packages:
+          - name: "server"
+            package_name: "nginx"
+        recommended: true
       - name: "nginx-official"
-        url: "https://nginx.org/packages/centos/8"
+        url: "http://nginx.org/packages/centos/"
         key: "https://nginx.org/keys/nginx_signing.key"
         type: "upstream"
-        recommended: true
         packages:
-          - name: "nginx"
-            package_name: "nginx"
-            version: "1.24.0-1.el8.ngx"
-      - name: "epel"
-        type: "third-party"
-        packages:
-          - name: "nginx"
+          - name: "server"
             package_name: "nginx"
 
   brew:
     packages:
-      - name: "nginx"
+      - name: "server"
         package_name: "nginx"
-        alternatives: ["nginx"]
-
-  choco:
-    packages:
-      - name: "nginx"
-        package_name: "nginx"
-        version: "1.24.0"
 
   docker:
     containers:
@@ -169,19 +205,43 @@ providers:
         tag: "1.24.0"
         registry: "docker.io"
         ports: ["80:80", "443:443"]
-        volumes: ["/etc/nginx:/etc/nginx", "/var/www/html:/usr/share/nginx/html"]
+        volumes: ["/etc/nginx:/etc/nginx:ro", "/var/log/nginx:/var/log/nginx"]
         labels:
           purpose: "web-server"
+      - name: "nginx-alpine"
+        image: "nginx"
+        tag: "1.24.0-alpine"
+        registry: "docker.io"
+        ports: ["80:80", "443:443"]
+        volumes: ["/etc/nginx:/etc/nginx:ro"]
+        labels:
+          purpose: "lightweight-web-server"
 
-  helm:
-    repositories:
-      - name: "nginx"
-        url: "https://kubernetes.github.io/ingress-nginx"
-        type: "upstream"
-        packages:
-          - name: "nginx-ingress"
-            package_name: "nginx-ingress"
-            alternatives: ["ingress-nginx"]
+  source:
+    sources:
+      - name: "main"
+        url: "http://nginx.org/download/nginx-{{version}}.tar.gz"
+        version: "1.24.0"
+        build_system: "autotools"
+        build_dir: "/tmp/sai-build-nginx"
+        source_dir: "/tmp/sai-build-nginx/nginx-1.24.0"
+        prerequisites:
+          - "build-essential"
+          - "libssl-dev"
+          - "libpcre3-dev"
+          - "zlib1g-dev"
+        environment:
+          CC: "gcc"
+          CFLAGS: "-O2 -g"
+        custom_commands:
+          download: "wget -O nginx-1.24.0.tar.gz http://nginx.org/download/nginx-1.24.0.tar.gz"
+          extract: "tar -xzf nginx-1.24.0.tar.gz"
+          configure: "./configure --prefix=/usr/local --with-http_ssl_module --with-http_v2_module --with-http_gzip_static_module --with-http_stub_status_module --with-file-aio --with-http_secure_link_module"
+          build: "make -j$(nproc)"
+          install: "make install && mkdir -p /etc/nginx /var/log/nginx /var/cache/nginx"
+          uninstall: "rm -rf /usr/local/sbin/nginx /usr/local/conf/nginx* /usr/local/html /etc/nginx /var/log/nginx /var/cache/nginx"
+          validation: "/usr/local/sbin/nginx -t"
+          version: "/usr/local/sbin/nginx -v 2>&1 | grep -o 'nginx/[0-9.]*'"
 
 compatibility:
   matrix:
@@ -201,18 +261,15 @@ compatibility:
       architecture: ["amd64", "arm64"]
       supported: true
       recommended: true
-    - provider: "choco"
-      platform: "windows"
-      architecture: ["amd64"]
-      supported: true
-      notes: "Windows service configuration differs"
     - provider: "docker"
       platform: ["linux", "macos", "windows"]
       architecture: ["amd64", "arm64"]
       supported: true
       recommended: true
-    - provider: "helm"
-      platform: ["linux", "macos", "windows"]
+      notes: "Recommended for development and containerized deployments"
+    - provider: "source"
+      platform: ["linux", "macos"]
       architecture: ["amd64", "arm64"]
       supported: true
-      notes: "Kubernetes ingress controller"
+      recommended: false
+      notes: "Requires build tools and development libraries"

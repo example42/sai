@@ -81,10 +81,54 @@ Based on detected environment, SAI automatically selects the most specific confi
 2. Falls back to base configuration: `software/{prefix}/{software}/default.yaml`
 3. Deep merges configurations with OS-specific values taking precedence
 
+## Alternative Installation Methods
+
+SAI supports three alternative installation methods beyond traditional package managers:
+
+### Source Builds
+Build software from source code with automatic build system detection:
+
+```bash
+# Build nginx from source
+sai install nginx --provider source
+
+# Build with custom configuration
+sai install nginx --provider source --verbose
+```
+
+**Supported Build Systems**: autotools, cmake, make, meson, ninja, custom
+
+### Binary Downloads
+Download and install pre-compiled binaries with OS/architecture detection:
+
+```bash
+# Download terraform binary
+sai install terraform --provider binary
+
+# Install specific version
+sai install terraform --provider binary --version 1.5.7
+```
+
+**Features**: Automatic OS/arch detection, checksum verification, archive extraction
+
+### Script Installation
+Execute installation scripts with safety measures:
+
+```bash
+# Run Docker installation script
+sai install docker --provider script
+
+# Execute with automatic confirmation
+sai install docker --provider script --yes
+```
+
+**Security**: Checksum verification, user consent required, rollback support
+
 ## Features
 
 - Hierarchical saidata structure support (software/{prefix}/{software}/default.yaml)
 - OS-specific overrides support (software/{prefix}/{software}/{os}/{os_version}.yaml)
+- Alternative installation methods (source, binary, script) with comprehensive template functions
 - Automatic platform, OS, and OS version detection with intelligent caching
 - Automatic provider detection and prioritization
 - Automatic software repositories management (when defined in saidata)

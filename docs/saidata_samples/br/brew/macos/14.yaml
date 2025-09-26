@@ -1,0 +1,50 @@
+version: "0.2"
+
+# macOS 14 (Sonoma) specific overrides for Homebrew
+
+directories:
+  - name: "homebrew"
+    path: "/opt/homebrew"
+    owner: "user"
+    group: "admin"
+    mode: "0755"
+    architecture: ["arm64"]
+  - name: "homebrew-intel"
+    path: "/usr/local/Homebrew"
+    owner: "user"
+    group: "admin"
+    mode: "0755"
+    architecture: ["amd64"]
+
+commands:
+  - name: "brew"
+    path: "/opt/homebrew/bin/brew"
+    shell_completion: true
+    man_page: "brew(1)"
+    architecture: ["arm64"]
+  - name: "brew-intel"
+    path: "/usr/local/bin/brew"
+    shell_completion: true
+    man_page: "brew(1)"
+    architecture: ["amd64"]
+
+providers:
+  script:
+    scripts:
+      - name: "install"
+        url: "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+        version: "4.1.25"
+        interpreter: "bash"
+        checksum: "sha256:8b3a2d6b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+        arguments: []
+        environment:
+          NONINTERACTIVE: "1"
+          CI: "1"
+        working_dir: "/tmp"
+        timeout: 1800
+        custom_commands:
+          download: "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o install-brew.sh"
+          install: "chmod +x install-brew.sh && NONINTERACTIVE=1 ./install-brew.sh && echo 'eval \"$(/opt/homebrew/bin/brew shellenv)\"' >> ~/.zprofile"
+          uninstall: "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh | NONINTERACTIVE=1 bash"
+          validation: "/opt/homebrew/bin/brew --version || /usr/local/bin/brew --version"
+          version: "(/opt/homebrew/bin/brew --version || /usr/local/bin/brew --version) | head -n1 | cut -d' ' -f2"

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"text/template"
 	"time"
@@ -159,6 +160,11 @@ func (e *TemplateEngine) createFuncMap() template.FuncMap {
 		"sai_directory":     e.saiDirectory,
 		"sai_command":       e.saiCommand,
 		"sai_container":     e.saiContainer,
+		
+		// Alternative installation provider functions
+		"sai_source":        e.saiSource,
+		"sai_binary":        e.saiBinary,
+		"sai_script":        e.saiScript,
 		
 		// Safety validation functions
 		"file_exists":       e.fileExists,
@@ -808,6 +814,9 @@ func (e *TemplateEngine) validateTemplateResolution(rendered string, originalTem
 		"sai_directory error:",
 		"sai_command error:",
 		"sai_container error:",
+		"sai_source error:",
+		"sai_binary error:",
+		"sai_script error:",
 		"no saidata context available",
 		"no package found",
 		"no service found",
@@ -816,6 +825,9 @@ func (e *TemplateEngine) validateTemplateResolution(rendered string, originalTem
 		"no command found",
 		"no container found",
 		"no port found",
+		"no source found",
+		"no binary found",
+		"no script found",
 	}
 	
 	// Check for port error indicators (port functions return -1 on error)
@@ -917,8 +929,11 @@ func (e *TemplateResolutionError) Error() string {
 	case "function_error":
 		details.WriteString("\nSuggestions:\n")
 		details.WriteString("- Check template function syntax and parameters\n")
-		details.WriteString("- Verify saidata contains the referenced packages/services\n")
+		details.WriteString("- Verify saidata contains the referenced packages/services/sources/binaries/scripts\n")
 		details.WriteString("- Ensure provider-specific overrides are properly configured\n")
+		details.WriteString("- For alternative providers, verify sources/binaries/scripts arrays are defined\n")
+		details.WriteString("- Check that build_system is specified for source configurations\n")
+		details.WriteString("- Verify URLs are valid for binary and script configurations\n")
 	}
 	
 	return details.String()
@@ -999,4 +1014,667 @@ func (e *TemplateEngine) createVariableMap(context *TemplateContext) map[string]
 	}
 	
 	return variables
+}
+
+// saiSource returns source configuration fields with provider override support
+// Supports multiple calling patterns:
+// - sai_source(index, "field") - returns field value for source at index
+// - sai_source(index, "field", "provider") - returns field value for source at index for provider
+func (e *TemplateEngine) saiSource(args ...interface{}) string {
+	if e.saidata == nil {
+		return "sai_source error: no saidata context available"
+	}
+	
+	if len(args) < 2 {
+		return "sai_source error: requires at least 2 arguments (index, field)"
+	}
+	
+	// Parse index argument
+	idx, ok := args[0].(int)
+	if !ok {
+		return "sai_source error: first argument must be index (int)"
+	}
+	
+	// Parse field argument
+	field, ok := args[1].(string)
+	if !ok {
+		return "sai_source error: second argument must be field name (string)"
+	}
+	
+	// Parse optional provider argument
+	var provider string
+	if len(args) >= 3 {
+		if p, ok := args[2].(string); ok {
+			provider = p
+		} else {
+			return "sai_source error: third argument must be provider name (string)"
+		}
+	}
+	
+	result, err := e.resolveSourceField(provider, idx, field)
+	if err != nil {
+		return fmt.Sprintf("sai_source error: %v", err)
+	}
+	return result
+}
+
+// resolveSourceField resolves source field with provider override support
+func (e *TemplateEngine) resolveSourceField(provider string, idx int, field string) (string, error) {
+	var source *types.Source
+	
+	// Check provider-specific sources first if provider specified
+	if provider != "" {
+		if providerConfig := e.saidata.GetProviderConfig(provider); providerConfig != nil {
+			if len(providerConfig.Sources) > idx {
+				source = &providerConfig.Sources[idx]
+			}
+		}
+	}
+	
+	// Fall back to default sources
+	if source == nil {
+		if len(e.saidata.Sources) <= idx {
+			return "", fmt.Errorf("no source found at index %d", idx)
+		}
+		source = &e.saidata.Sources[idx]
+	}
+	
+	// Return requested field with defaults
+	switch field {
+	case "name":
+		return source.Name, nil
+	case "url":
+		return source.URL, nil
+	case "version":
+		return source.Version, nil
+	case "build_system":
+		return source.BuildSystem, nil
+	case "build_dir":
+		return source.GetBuildDirOrDefault(e.saidata.Metadata.Name), nil
+	case "source_dir":
+		return source.GetSourceDirOrDefault(e.saidata.Metadata.Name), nil
+	case "install_prefix":
+		return source.GetInstallPrefixOrDefault(), nil
+	case "configure_args":
+		return strings.Join(source.ConfigureArgs, " "), nil
+	case "build_args":
+		return strings.Join(source.BuildArgs, " "), nil
+	case "install_args":
+		return strings.Join(source.InstallArgs, " "), nil
+	case "prerequisites":
+		return strings.Join(source.Prerequisites, " "), nil
+	case "checksum":
+		return source.Checksum, nil
+	case "download_cmd":
+		return e.generateSourceDownloadCommand(source), nil
+	case "extract_cmd":
+		return e.generateSourceExtractCommand(source), nil
+	case "configure_cmd":
+		return e.generateSourceConfigureCommand(source), nil
+	case "build_cmd":
+		return e.generateSourceBuildCommand(source), nil
+	case "install_cmd":
+		return e.generateSourceInstallCommand(source), nil
+	case "prerequisites_install_cmd":
+		return e.generatePrerequisitesInstallCommand(source.Prerequisites), nil
+	default:
+		return "", fmt.Errorf("unsupported source field: %s", field)
+	}
+}
+
+// generateSourceDownloadCommand generates download command based on source configuration
+func (e *TemplateEngine) generateSourceDownloadCommand(source *types.Source) string {
+	if source.CustomCommands != nil && source.CustomCommands.Download != "" {
+		return source.CustomCommands.Download
+	}
+	
+	buildDir := source.GetBuildDirOrDefault(e.saidata.Metadata.Name)
+	
+	// Generate download command based on URL type
+	if strings.HasSuffix(source.URL, ".git") {
+		return fmt.Sprintf("mkdir -p %s && cd %s && git clone %s", buildDir, buildDir, source.URL)
+	} else {
+		filename := filepath.Base(source.URL)
+		return fmt.Sprintf("mkdir -p %s && cd %s && curl -L -o %s %s", buildDir, buildDir, filename, source.URL)
+	}
+}
+
+// generateSourceExtractCommand generates extract command based on source configuration
+func (e *TemplateEngine) generateSourceExtractCommand(source *types.Source) string {
+	if source.CustomCommands != nil && source.CustomCommands.Extract != "" {
+		return source.CustomCommands.Extract
+	}
+	
+	buildDir := source.GetBuildDirOrDefault(e.saidata.Metadata.Name)
+	sourceDir := source.GetSourceDirOrDefault(e.saidata.Metadata.Name)
+	filename := filepath.Base(source.URL)
+	
+	// Skip extraction for git repositories
+	if strings.HasSuffix(source.URL, ".git") {
+		return "# Git repository - no extraction needed"
+	}
+	
+	// Generate extraction command based on file extension
+	if strings.HasSuffix(filename, ".tar.gz") || strings.HasSuffix(filename, ".tgz") {
+		return fmt.Sprintf("cd %s && tar -xzf %s && mv %s-* %s", buildDir, filename, e.saidata.Metadata.Name, sourceDir)
+	} else if strings.HasSuffix(filename, ".tar.bz2") {
+		return fmt.Sprintf("cd %s && tar -xjf %s && mv %s-* %s", buildDir, filename, e.saidata.Metadata.Name, sourceDir)
+	} else if strings.HasSuffix(filename, ".zip") {
+		return fmt.Sprintf("cd %s && unzip %s && mv %s-* %s", buildDir, filename, e.saidata.Metadata.Name, sourceDir)
+	} else {
+		return fmt.Sprintf("# Unknown archive format for %s", filename)
+	}
+}
+
+// generateSourceConfigureCommand generates configure command based on build system
+func (e *TemplateEngine) generateSourceConfigureCommand(source *types.Source) string {
+	if source.CustomCommands != nil && source.CustomCommands.Configure != "" {
+		return source.CustomCommands.Configure
+	}
+	
+	sourceDir := source.GetSourceDirOrDefault(e.saidata.Metadata.Name)
+	installPrefix := source.GetInstallPrefixOrDefault()
+	configureArgs := strings.Join(source.ConfigureArgs, " ")
+	
+	switch source.BuildSystem {
+	case "autotools", "configure", "automake", "autoconf":
+		cmd := fmt.Sprintf("cd %s && ./configure --prefix=%s", sourceDir, installPrefix)
+		if configureArgs != "" {
+			cmd += " " + configureArgs
+		}
+		return cmd
+	case "cmake":
+		cmd := fmt.Sprintf("cd %s && cmake -DCMAKE_INSTALL_PREFIX=%s .", sourceDir, installPrefix)
+		if configureArgs != "" {
+			cmd += " " + configureArgs
+		}
+		return cmd
+	case "meson":
+		cmd := fmt.Sprintf("cd %s && meson setup build --prefix=%s", sourceDir, installPrefix)
+		if configureArgs != "" {
+			cmd += " " + configureArgs
+		}
+		return cmd
+	case "make":
+		return fmt.Sprintf("# Make-based build - no configure step needed")
+	case "ninja":
+		return fmt.Sprintf("# Ninja-based build - no configure step needed")
+	case "custom":
+		return fmt.Sprintf("# Custom build system - configure command should be specified in custom_commands")
+	default:
+		return fmt.Sprintf("# Unknown build system: %s", source.BuildSystem)
+	}
+}
+
+// generateSourceBuildCommand generates build command based on build system
+func (e *TemplateEngine) generateSourceBuildCommand(source *types.Source) string {
+	if source.CustomCommands != nil && source.CustomCommands.Build != "" {
+		return source.CustomCommands.Build
+	}
+	
+	sourceDir := source.GetSourceDirOrDefault(e.saidata.Metadata.Name)
+	buildArgs := strings.Join(source.BuildArgs, " ")
+	
+	switch source.BuildSystem {
+	case "autotools", "configure", "automake", "autoconf", "make":
+		cmd := fmt.Sprintf("cd %s && make", sourceDir)
+		if buildArgs != "" {
+			cmd += " " + buildArgs
+		}
+		return cmd
+	case "cmake":
+		cmd := fmt.Sprintf("cd %s && cmake --build .", sourceDir)
+		if buildArgs != "" {
+			cmd += " " + buildArgs
+		}
+		return cmd
+	case "meson":
+		cmd := fmt.Sprintf("cd %s && meson compile -C build", sourceDir)
+		if buildArgs != "" {
+			cmd += " " + buildArgs
+		}
+		return cmd
+	case "ninja":
+		cmd := fmt.Sprintf("cd %s && ninja", sourceDir)
+		if buildArgs != "" {
+			cmd += " " + buildArgs
+		}
+		return cmd
+	case "custom":
+		return fmt.Sprintf("# Custom build system - build command should be specified in custom_commands")
+	default:
+		return fmt.Sprintf("# Unknown build system: %s", source.BuildSystem)
+	}
+}
+
+// generateSourceInstallCommand generates install command based on build system
+func (e *TemplateEngine) generateSourceInstallCommand(source *types.Source) string {
+	if source.CustomCommands != nil && source.CustomCommands.Install != "" {
+		return source.CustomCommands.Install
+	}
+	
+	sourceDir := source.GetSourceDirOrDefault(e.saidata.Metadata.Name)
+	installArgs := strings.Join(source.InstallArgs, " ")
+	
+	switch source.BuildSystem {
+	case "autotools", "configure", "automake", "autoconf", "make":
+		cmd := fmt.Sprintf("cd %s && make install", sourceDir)
+		if installArgs != "" {
+			cmd += " " + installArgs
+		}
+		return cmd
+	case "cmake":
+		cmd := fmt.Sprintf("cd %s && cmake --install .", sourceDir)
+		if installArgs != "" {
+			cmd += " " + installArgs
+		}
+		return cmd
+	case "meson":
+		cmd := fmt.Sprintf("cd %s && meson install -C build", sourceDir)
+		if installArgs != "" {
+			cmd += " " + installArgs
+		}
+		return cmd
+	case "ninja":
+		cmd := fmt.Sprintf("cd %s && ninja install", sourceDir)
+		if installArgs != "" {
+			cmd += " " + installArgs
+		}
+		return cmd
+	case "custom":
+		return fmt.Sprintf("# Custom build system - install command should be specified in custom_commands")
+	default:
+		return fmt.Sprintf("# Unknown build system: %s", source.BuildSystem)
+	}
+}
+
+// generatePrerequisitesInstallCommand generates command to install prerequisites
+func (e *TemplateEngine) generatePrerequisitesInstallCommand(prerequisites []string) string {
+	if len(prerequisites) == 0 {
+		return "# No prerequisites specified"
+	}
+	
+	// This is a simplified implementation - in practice, this would need to detect
+	// the package manager and generate appropriate install commands
+	return fmt.Sprintf("# Install prerequisites: %s", strings.Join(prerequisites, " "))
+}
+
+// saiBinary returns binary configuration fields with OS/architecture templating support
+// Supports multiple calling patterns:
+// - sai_binary(index, "field") - returns field value for binary at index
+// - sai_binary(index, "field", "provider") - returns field value for binary at index for provider
+func (e *TemplateEngine) saiBinary(args ...interface{}) string {
+	if e.saidata == nil {
+		return "sai_binary error: no saidata context available"
+	}
+	
+	if len(args) < 2 {
+		return "sai_binary error: requires at least 2 arguments (index, field)"
+	}
+	
+	// Parse index argument
+	idx, ok := args[0].(int)
+	if !ok {
+		return "sai_binary error: first argument must be index (int)"
+	}
+	
+	// Parse field argument
+	field, ok := args[1].(string)
+	if !ok {
+		return "sai_binary error: second argument must be field name (string)"
+	}
+	
+	// Parse optional provider argument
+	var provider string
+	if len(args) >= 3 {
+		if p, ok := args[2].(string); ok {
+			provider = p
+		} else {
+			return "sai_binary error: third argument must be provider name (string)"
+		}
+	}
+	
+	result, err := e.resolveBinaryField(provider, idx, field)
+	if err != nil {
+		return fmt.Sprintf("sai_binary error: %v", err)
+	}
+	return result
+}
+
+// resolveBinaryField resolves binary field with provider override support
+func (e *TemplateEngine) resolveBinaryField(provider string, idx int, field string) (string, error) {
+	var binary *types.Binary
+	
+	// Check provider-specific binaries first if provider specified
+	if provider != "" {
+		if providerConfig := e.saidata.GetProviderConfig(provider); providerConfig != nil {
+			if len(providerConfig.Binaries) > idx {
+				binary = &providerConfig.Binaries[idx]
+			}
+		}
+	}
+	
+	// Fall back to default binaries
+	if binary == nil {
+		if len(e.saidata.Binaries) <= idx {
+			return "", fmt.Errorf("no binary found at index %d", idx)
+		}
+		binary = &e.saidata.Binaries[idx]
+	}
+	
+	// Return requested field with defaults and templating
+	switch field {
+	case "name":
+		return binary.Name, nil
+	case "url":
+		// Template the URL with OS/architecture placeholders
+		return binary.TemplateURL(runtime.GOOS, runtime.GOARCH), nil
+	case "version":
+		return binary.Version, nil
+	case "architecture":
+		return binary.Architecture, nil
+	case "platform":
+		return binary.Platform, nil
+	case "checksum":
+		return binary.Checksum, nil
+	case "install_path":
+		return binary.GetInstallPathOrDefault(), nil
+	case "executable":
+		return binary.GetExecutableOrDefault(), nil
+	case "permissions":
+		return binary.GetPermissionsOrDefault(), nil
+	case "download_cmd":
+		return e.generateBinaryDownloadCommand(binary), nil
+	case "extract_cmd":
+		return e.generateBinaryExtractCommand(binary), nil
+	case "install_cmd":
+		return e.generateBinaryInstallCommand(binary), nil
+	case "verify_checksum_cmd":
+		return e.generateBinaryChecksumCommand(binary), nil
+	default:
+		return "", fmt.Errorf("unsupported binary field: %s", field)
+	}
+}
+
+// generateBinaryDownloadCommand generates download command for binary
+func (e *TemplateEngine) generateBinaryDownloadCommand(binary *types.Binary) string {
+	if binary.CustomCommands != nil && binary.CustomCommands.Download != "" {
+		return binary.CustomCommands.Download
+	}
+	
+	url := binary.TemplateURL(runtime.GOOS, runtime.GOARCH)
+	filename := filepath.Base(url)
+	installPath := binary.GetInstallPathOrDefault()
+	
+	return fmt.Sprintf("mkdir -p %s && curl -L -o %s/%s %s", installPath, installPath, filename, url)
+}
+
+// generateBinaryExtractCommand generates extract command for binary archives
+func (e *TemplateEngine) generateBinaryExtractCommand(binary *types.Binary) string {
+	if binary.CustomCommands != nil && binary.CustomCommands.Extract != "" {
+		return binary.CustomCommands.Extract
+	}
+	
+	if binary.Archive == nil {
+		return "# No archive configuration - assuming direct binary download"
+	}
+	
+	url := binary.TemplateURL(runtime.GOOS, runtime.GOARCH)
+	filename := filepath.Base(url)
+	installPath := binary.GetInstallPathOrDefault()
+	
+	switch binary.Archive.Format {
+	case "tar.gz", "tgz":
+		cmd := fmt.Sprintf("cd %s && tar -xzf %s", installPath, filename)
+		if binary.Archive.StripPrefix != "" {
+			cmd += fmt.Sprintf(" --strip-components=1")
+		}
+		if binary.Archive.ExtractPath != "" {
+			cmd += fmt.Sprintf(" %s", binary.Archive.ExtractPath)
+		}
+		return cmd
+	case "zip":
+		cmd := fmt.Sprintf("cd %s && unzip %s", installPath, filename)
+		if binary.Archive.ExtractPath != "" {
+			cmd += fmt.Sprintf(" %s", binary.Archive.ExtractPath)
+		}
+		return cmd
+	default:
+		return fmt.Sprintf("# Unknown archive format: %s", binary.Archive.Format)
+	}
+}
+
+// generateBinaryInstallCommand generates install command for binary
+func (e *TemplateEngine) generateBinaryInstallCommand(binary *types.Binary) string {
+	if binary.CustomCommands != nil && binary.CustomCommands.Install != "" {
+		return binary.CustomCommands.Install
+	}
+	
+	installPath := binary.GetInstallPathOrDefault()
+	executable := binary.GetExecutableOrDefault()
+	permissions := binary.GetPermissionsOrDefault()
+	
+	if binary.Archive != nil {
+		// For archived binaries, move the extracted executable
+		return fmt.Sprintf("chmod %s %s/%s", permissions, installPath, executable)
+	} else {
+		// For direct binary downloads, rename and set permissions
+		url := binary.TemplateURL(runtime.GOOS, runtime.GOARCH)
+		filename := filepath.Base(url)
+		return fmt.Sprintf("mv %s/%s %s/%s && chmod %s %s/%s", installPath, filename, installPath, executable, permissions, installPath, executable)
+	}
+}
+
+// generateBinaryChecksumCommand generates checksum verification command
+func (e *TemplateEngine) generateBinaryChecksumCommand(binary *types.Binary) string {
+	if binary.Checksum == "" {
+		return "# No checksum specified - skipping verification"
+	}
+	
+	url := binary.TemplateURL(runtime.GOOS, runtime.GOARCH)
+	filename := filepath.Base(url)
+	installPath := binary.GetInstallPathOrDefault()
+	
+	// Detect checksum type based on length
+	checksumType := "sha256"
+	if len(binary.Checksum) == 32 {
+		checksumType = "md5"
+	} else if len(binary.Checksum) == 40 {
+		checksumType = "sha1"
+	} else if len(binary.Checksum) == 64 {
+		checksumType = "sha256"
+	}
+	
+	return fmt.Sprintf("echo '%s %s/%s' | %ssum -c", binary.Checksum, installPath, filename, checksumType)
+}
+
+// saiScript returns script configuration fields with environment variable support
+// Supports multiple calling patterns:
+// - sai_script(index, "field") - returns field value for script at index
+// - sai_script(index, "field", "provider") - returns field value for script at index for provider
+func (e *TemplateEngine) saiScript(args ...interface{}) string {
+	if e.saidata == nil {
+		return "sai_script error: no saidata context available"
+	}
+	
+	if len(args) < 2 {
+		return "sai_script error: requires at least 2 arguments (index, field)"
+	}
+	
+	// Parse index argument
+	idx, ok := args[0].(int)
+	if !ok {
+		return "sai_script error: first argument must be index (int)"
+	}
+	
+	// Parse field argument
+	field, ok := args[1].(string)
+	if !ok {
+		return "sai_script error: second argument must be field name (string)"
+	}
+	
+	// Parse optional provider argument
+	var provider string
+	if len(args) >= 3 {
+		if p, ok := args[2].(string); ok {
+			provider = p
+		} else {
+			return "sai_script error: third argument must be provider name (string)"
+		}
+	}
+	
+	result, err := e.resolveScriptField(provider, idx, field)
+	if err != nil {
+		return fmt.Sprintf("sai_script error: %v", err)
+	}
+	return result
+}
+
+// resolveScriptField resolves script field with provider override support
+func (e *TemplateEngine) resolveScriptField(provider string, idx int, field string) (string, error) {
+	var script *types.Script
+	
+	// Check provider-specific scripts first if provider specified
+	if provider != "" {
+		if providerConfig := e.saidata.GetProviderConfig(provider); providerConfig != nil {
+			if len(providerConfig.Scripts) > idx {
+				script = &providerConfig.Scripts[idx]
+			}
+		}
+	}
+	
+	// Fall back to default scripts
+	if script == nil {
+		if len(e.saidata.Scripts) <= idx {
+			return "", fmt.Errorf("no script found at index %d", idx)
+		}
+		script = &e.saidata.Scripts[idx]
+	}
+	
+	// Return requested field with defaults
+	switch field {
+	case "name":
+		return script.Name, nil
+	case "url":
+		return script.URL, nil
+	case "version":
+		return script.Version, nil
+	case "interpreter":
+		return script.GetInterpreterOrDefault(), nil
+	case "checksum":
+		return script.Checksum, nil
+	case "arguments":
+		return strings.Join(script.Arguments, " "), nil
+	case "working_dir":
+		return script.GetWorkingDirOrDefault(), nil
+	case "timeout":
+		return fmt.Sprintf("%d", script.GetTimeoutOrDefault()), nil
+	case "download_cmd":
+		return e.generateScriptDownloadCommand(script), nil
+	case "execute_cmd":
+		return e.generateScriptExecuteCommand(script), nil
+	case "verify_checksum_cmd":
+		return e.generateScriptChecksumCommand(script), nil
+	case "environment_vars":
+		return e.generateScriptEnvironmentVars(script), nil
+	default:
+		return "", fmt.Errorf("unsupported script field: %s", field)
+	}
+}
+
+// generateScriptDownloadCommand generates download command for script
+func (e *TemplateEngine) generateScriptDownloadCommand(script *types.Script) string {
+	if script.CustomCommands != nil && script.CustomCommands.Download != "" {
+		return script.CustomCommands.Download
+	}
+	
+	filename := filepath.Base(script.URL)
+	// Handle URLs that don't have a clear filename (like https://get.docker.com/)
+	if filename == "." || filename == "/" || strings.Contains(filename, ".") && !strings.Contains(filename, " ") {
+		// If it looks like a domain name, use a default filename
+		if strings.Contains(filename, ".") && !strings.HasSuffix(filename, ".sh") && !strings.HasSuffix(filename, ".py") {
+			filename = "install.sh"
+		}
+	}
+	workingDir := script.GetWorkingDirOrDefault()
+	
+	return fmt.Sprintf("mkdir -p %s && cd %s && curl -L -o %s %s", workingDir, workingDir, filename, script.URL)
+}
+
+// generateScriptExecuteCommand generates execute command for script
+func (e *TemplateEngine) generateScriptExecuteCommand(script *types.Script) string {
+	if script.CustomCommands != nil && script.CustomCommands.Install != "" {
+		return script.CustomCommands.Install
+	}
+	
+	filename := filepath.Base(script.URL)
+	// Handle URLs that don't have a clear filename (like https://get.docker.com/)
+	if filename == "." || filename == "/" || strings.Contains(filename, ".") && !strings.Contains(filename, " ") {
+		// If it looks like a domain name, use a default filename
+		if strings.Contains(filename, ".") && !strings.HasSuffix(filename, ".sh") && !strings.HasSuffix(filename, ".py") {
+			filename = "install.sh"
+		}
+	}
+	workingDir := script.GetWorkingDirOrDefault()
+	interpreter := script.GetInterpreterOrDefault()
+	arguments := strings.Join(script.Arguments, " ")
+	timeout := script.GetTimeoutOrDefault()
+	
+	cmd := fmt.Sprintf("cd %s && timeout %d %s %s", workingDir, timeout, interpreter, filename)
+	if arguments != "" {
+		cmd += " " + arguments
+	}
+	
+	return cmd
+}
+
+// generateScriptChecksumCommand generates checksum verification command for script
+func (e *TemplateEngine) generateScriptChecksumCommand(script *types.Script) string {
+	if script.Checksum == "" {
+		return "# No checksum specified - skipping verification"
+	}
+	
+	filename := filepath.Base(script.URL)
+	workingDir := script.GetWorkingDirOrDefault()
+	
+	// Detect checksum type based on length
+	checksumType := "sha256"
+	if len(script.Checksum) == 32 {
+		checksumType = "md5"
+	} else if len(script.Checksum) == 40 {
+		checksumType = "sha1"
+	} else if len(script.Checksum) == 64 {
+		checksumType = "sha256"
+	}
+	
+	return fmt.Sprintf("cd %s && echo '%s %s' | %ssum -c", workingDir, script.Checksum, filename, checksumType)
+}
+
+// generateScriptEnvironmentVars generates environment variable export commands
+func (e *TemplateEngine) generateScriptEnvironmentVars(script *types.Script) string {
+	if len(script.Environment) == 0 {
+		return "# No environment variables specified"
+	}
+	
+	// Sort keys for consistent output
+	var keys []string
+	for key := range script.Environment {
+		keys = append(keys, key)
+	}
+	
+	// Sort keys alphabetically for consistent test results
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			if keys[i] > keys[j] {
+				keys[i], keys[j] = keys[j], keys[i]
+			}
+		}
+	}
+	
+	var exports []string
+	for _, key := range keys {
+		exports = append(exports, fmt.Sprintf("export %s='%s'", key, script.Environment[key]))
+	}
+	
+	return strings.Join(exports, " && ")
 }

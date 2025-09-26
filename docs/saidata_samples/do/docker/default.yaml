@@ -102,6 +102,44 @@ ports:
     service: "docker-api-tls"
     description: "Docker API (TLS)"
 
+scripts:
+  - name: "convenience"
+    url: "https://get.docker.com"
+    version: "24.0.0"
+    interpreter: "bash"
+    checksum: "sha256:b5b2b2c507a0944348e0303114d8d93aaaa081732b86451d9bce1f432a537bc7"
+    arguments: ["--channel", "stable", "--dry-run"]
+    environment:
+      CHANNEL: "stable"
+      DOWNLOAD_URL: "https://download.docker.com"
+      DRY_RUN: "0"
+      SKIP_NON_ROOT_USER: "0"
+    working_dir: "/tmp"
+    timeout: 600
+    custom_commands:
+      download: "curl -fsSL https://get.docker.com -o get-docker.sh && echo '{{checksum}}  get-docker.sh' | sha256sum -c"
+      install: "chmod +x get-docker.sh && ./get-docker.sh {{arguments | join(' ')}} && systemctl enable docker && systemctl start docker && usermod -aG docker $USER"
+      uninstall: "systemctl stop docker && systemctl disable docker && apt-get remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin && rm -rf /var/lib/docker /etc/docker && groupdel docker"
+      validation: "docker --version && systemctl is-active docker && docker run hello-world"
+      version: "docker --version | cut -d' ' -f3 | tr -d ','"
+  - name: "compose-standalone"
+    url: "https://github.com/docker/compose/releases/download/v{{version}}/docker-compose-{{os}}-{{arch}}"
+    version: "2.20.0"
+    interpreter: "bash"
+    checksum: "sha256:c8a3892c58c33ee2b4b8e7c2c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8"
+    arguments: []
+    environment:
+      COMPOSE_VERSION: "2.20.0"
+      INSTALL_PATH: "/usr/local/bin/docker-compose"
+    working_dir: "/tmp"
+    timeout: 300
+    custom_commands:
+      download: "curl -L {{url}} -o docker-compose && echo '{{checksum}}  docker-compose' | sha256sum -c"
+      install: "chmod +x docker-compose && mv docker-compose {{environment.INSTALL_PATH}} && ln -sf {{environment.INSTALL_PATH}} /usr/bin/docker-compose"
+      uninstall: "rm -f {{environment.INSTALL_PATH}} /usr/bin/docker-compose"
+      validation: "{{environment.INSTALL_PATH}} --version"
+      version: "{{environment.INSTALL_PATH}} --version | cut -d' ' -f4 | tr -d ','"
+
 providers:
   apt:
     repositories:
@@ -161,6 +199,45 @@ providers:
         package_name: "docker-compose"
         alternatives: ["docker-compose"]
 
+  script:
+    scripts:
+      - name: "convenience"
+        url: "https://get.docker.com"
+        version: "24.0.0"
+        interpreter: "bash"
+        checksum: "sha256:b5b2b2c507a0944348e0303114d8d93aaaa081732b86451d9bce1f432a537bc7"
+        arguments: ["--channel", "stable"]
+        environment:
+          CHANNEL: "stable"
+          DOWNLOAD_URL: "https://download.docker.com"
+          DRY_RUN: "0"
+          SKIP_NON_ROOT_USER: "0"
+        working_dir: "/tmp"
+        timeout: 600
+        custom_commands:
+          download: "curl -fsSL https://get.docker.com -o get-docker.sh && echo '{{checksum}}  get-docker.sh' | sha256sum -c"
+          install: "chmod +x get-docker.sh && ./get-docker.sh {{arguments | join(' ')}} && systemctl enable docker && systemctl start docker && usermod -aG docker $USER"
+          uninstall: "systemctl stop docker && systemctl disable docker && apt-get remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin && rm -rf /var/lib/docker /etc/docker && groupdel docker"
+          validation: "docker --version && systemctl is-active docker"
+          version: "docker --version | cut -d' ' -f3 | tr -d ','"
+      - name: "compose-standalone"
+        url: "https://github.com/docker/compose/releases/download/v{{version}}/docker-compose-{{os}}-{{arch}}"
+        version: "2.20.0"
+        interpreter: "bash"
+        checksum: "sha256:c8a3892c58c33ee2b4b8e7c2c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8"
+        arguments: []
+        environment:
+          COMPOSE_VERSION: "2.20.0"
+          INSTALL_PATH: "/usr/local/bin/docker-compose"
+        working_dir: "/tmp"
+        timeout: 300
+        custom_commands:
+          download: "curl -L {{url}} -o docker-compose && echo '{{checksum}}  docker-compose' | sha256sum -c"
+          install: "chmod +x docker-compose && mv docker-compose {{environment.INSTALL_PATH}} && ln -sf {{environment.INSTALL_PATH}} /usr/bin/docker-compose"
+          uninstall: "rm -f {{environment.INSTALL_PATH}} /usr/bin/docker-compose"
+          validation: "{{environment.INSTALL_PATH}} --version"
+          version: "{{environment.INSTALL_PATH}} --version | cut -d' ' -f4 | tr -d ','"
+
   docker:
     containers:
       - name: "dind"
@@ -192,6 +269,13 @@ compatibility:
       architecture: ["amd64", "arm64"]
       supported: true
       recommended: true
+    - provider: "script"
+      platform: ["linux"]
+      architecture: ["amd64", "arm64"]
+      supported: true
+      recommended: true
+      tested: true
+      notes: "Official Docker convenience script installation"
     - provider: "docker"
       platform: ["linux", "macos", "windows"]
       architecture: ["amd64", "arm64"]
