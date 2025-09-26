@@ -31,6 +31,7 @@ metadata:
   description: "Test software for validation"
 packages:
   - name: "test-package"
+    package_name: "test-package-deb"
     version: "1.0.0"
 services:
   - name: "test-service"
@@ -96,6 +97,7 @@ providers:
   apt:
     packages:
       - name: "app-deb"
+        package_name: "app-deb-package"
         version: "1.0.0"
     repositories:
       - name: "custom-repo"
@@ -337,6 +339,7 @@ func TestResourceValidationResult(t *testing.T) {
 	t.Run("InvalidResult", func(t *testing.T) {
 		result := &interfaces.ResourceValidationResult{
 			Valid:              false,
+			CanProceed:         true, // Set explicitly for test
 			MissingFiles:       []string{"/missing/file"},
 			MissingDirectories: []string{"/missing/dir"},
 			MissingCommands:    []string{"/missing/cmd"},

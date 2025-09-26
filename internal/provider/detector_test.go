@@ -491,7 +491,7 @@ func TestProviderDetector_DebugLogging(t *testing.T) {
 	}
 
 	// Test debug logging (should not crash)
-	detector.LogProviderDetection(providers, true)
+	detector.LogProviderDetection(providers)
 
 	// Test detection stats
 	stats := detector.GetDetectionStats(providers)

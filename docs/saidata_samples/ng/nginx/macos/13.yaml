@@ -1,0 +1,115 @@
+version: "0.2"
+
+# macOS 13 specific overrides for nginx
+metadata:
+  name: "nginx"
+services:
+  - name: "nginx"
+    service_name: "nginx"
+    type: "launchd"
+
+files:
+  - name: "config"
+    path: "/usr/local/etc/nginx/nginx.conf"
+    type: "config"
+    owner: "root"
+    group: "wheel"
+    mode: "0644"
+    backup: true
+  - name: "binary"
+    path: "/usr/local/bin/nginx"
+    type: "binary"
+    owner: "root"
+    group: "wheel"
+    mode: "0755"
+
+directories:
+  - name: "config"
+    path: "/usr/local/etc/nginx"
+    owner: "root"
+    group: "wheel"
+    mode: "0755"
+  - name: "log"
+    path: "/usr/local/var/log/nginx"
+    owner: "root"
+    group: "wheel"
+    mode: "0755"
+  - name: "cache"
+    path: "/usr/local/var/cache/nginx"
+    owner: "root"
+    group: "wheel"
+    mode: "0755"
+
+commands:
+  - name: "nginx"
+    path: "/usr/local/bin/nginx"
+
+sources:
+  - name: "main"
+    prerequisites:
+      - "gcc"
+      - "make"
+      - "openssl"
+      - "pcre"
+      - "zlib"
+      - "wget"
+      - "tar"
+    configure_args:
+      - "--prefix=/usr/local"
+      - "--sbin-path=/usr/local/bin/nginx"
+      - "--conf-path=/usr/local/etc/nginx/nginx.conf"
+      - "--error-log-path=/usr/local/var/log/nginx/error.log"
+      - "--http-log-path=/usr/local/var/log/nginx/access.log"
+      - "--pid-path=/usr/local/var/run/nginx.pid"
+      - "--lock-path=/usr/local/var/run/nginx.lock"
+      - "--http-client-body-temp-path=/usr/local/var/cache/nginx/client_temp"
+      - "--http-proxy-temp-path=/usr/local/var/cache/nginx/proxy_temp"
+      - "--http-fastcgi-temp-path=/usr/local/var/cache/nginx/fastcgi_temp"
+      - "--http-uwsgi-temp-path=/usr/local/var/cache/nginx/uwsgi_temp"
+      - "--http-scgi-temp-path=/usr/local/var/cache/nginx/scgi_temp"
+      - "--with-http_ssl_module"
+      - "--with-http_v2_module"
+      - "--with-http_gzip_static_module"
+      - "--with-http_stub_status_module"
+      - "--with-file-aio"
+      - "--with-http_secure_link_module"
+      - "--with-http_realip_module"
+      - "--with-threads"
+      - "--with-cc-opt=-I/opt/homebrew/include"
+      - "--with-ld-opt=-L/opt/homebrew/lib"
+    environment:
+      CC: "/usr/bin/clang"
+      CXX: "/usr/bin/clang++"
+      CFLAGS: "-O2 -I/opt/homebrew/include"
+      LDFLAGS: "-L/opt/homebrew/lib"
+    custom_commands:
+      install: "make {{install_args | join(' ')}} && mkdir -p /usr/local/etc/nginx /usr/local/var/log/nginx /usr/local/var/cache/nginx /usr/local/var/cache/nginx/client_temp /usr/local/var/cache/nginx/proxy_temp /usr/local/var/cache/nginx/fastcgi_temp /usr/local/var/cache/nginx/uwsgi_temp /usr/local/var/cache/nginx/scgi_temp && chown -R $(whoami):staff /usr/local/var/log/nginx /usr/local/var/cache/nginx"
+      validation: "/usr/local/bin/nginx -t && /usr/local/bin/nginx -v"
+      version: "/usr/local/bin/nginx -v 2>&1 | grep -o 'nginx/[0-9.]*'"
+
+providers:
+  brew:
+    packages:
+      - name: "server"
+        package_name: "nginx"
+
+  source:
+    sources:
+      - name: "main"
+        prerequisites:
+          - "gcc"
+          - "make"
+          - "openssl"
+          - "pcre"
+          - "zlib"
+          - "wget"
+          - "tar"
+        environment:
+          CC: "/usr/bin/clang"
+          CXX: "/usr/bin/clang++"
+          CFLAGS: "-O2 -I/opt/homebrew/include"
+          LDFLAGS: "-L/opt/homebrew/lib"
+        custom_commands:
+          install: "make {{install_args | join(' ')}} && mkdir -p /usr/local/etc/nginx /usr/local/var/log/nginx /usr/local/var/cache/nginx /usr/local/var/cache/nginx/client_temp /usr/local/var/cache/nginx/proxy_temp /usr/local/var/cache/nginx/fastcgi_temp /usr/local/var/cache/nginx/uwsgi_temp /usr/local/var/cache/nginx/scgi_temp && chown -R $(whoami):staff /usr/local/var/log/nginx /usr/local/var/cache/nginx"
+          validation: "/usr/local/bin/nginx -t && /usr/local/bin/nginx -v"
+          version: "/usr/local/bin/nginx -v 2>&1 | grep -o 'nginx/[0-9.]*'"

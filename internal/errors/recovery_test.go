@@ -76,6 +76,11 @@ func (m *MockProviderManager) GetAvailableProviders() []*types.ProviderData {
 	return args.Get(0).([]*types.ProviderData)
 }
 
+func (m *MockProviderManager) GetAllProviders() []*types.ProviderData {
+	args := m.Called()
+	return args.Get(0).([]*types.ProviderData)
+}
+
 func (m *MockProviderManager) GetProvider(name string) (*types.ProviderData, error) {
 	args := m.Called(name)
 	return args.Get(0).(*types.ProviderData), args.Error(1)

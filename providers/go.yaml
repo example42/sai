@@ -8,7 +8,7 @@ provider:
   type: "package_manager"
   platforms: ["linux", "macos", "windows"]
   executable: "go"  # Main executable for availability detection
-  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "status"]
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version"]
 
 actions:
   install:
@@ -39,26 +39,7 @@ actions:
     timeout: 300
     detection: "go list -m {{sai_package(0, 'package_name', 'go')}} >/dev/null 2>&1"
 
-  start:
-    description: "Start Go application"
-    template: "{{sai_command(0, 'path', 'go')}}"
 
-  stop:
-    description: "Stop Go application"
-    template: "pkill -f {{sai_package(0, 'package_name', 'go')}}"
-
-  restart:
-    description: "Restart Go application"
-    steps:
-      - name: "stop-app"
-        command: "pkill -f {{sai_package(0, 'package_name', 'go')}}"
-        ignore_failure: true
-      - name: "start-app"
-        command: "{{sai_command(0, 'path', 'go')}}"
-
-  status:
-    description: "Check application status"
-    template: "pgrep -f {{sai_package(0, 'package_name', 'go')}}"
 
   info:
     description: "Show package information"

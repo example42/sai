@@ -8,51 +8,7 @@ import (
 	"sai/internal/types"
 )
 
-// Mock implementations for testing
-type mockResourceValidator struct {
-	files       map[string]bool
-	services    map[string]bool
-	commands    map[string]bool
-	directories map[string]bool
-}
-
-func (m *mockResourceValidator) FileExists(path string) bool {
-	return m.files[path]
-}
-
-func (m *mockResourceValidator) ServiceExists(service string) bool {
-	return m.services[service]
-}
-
-func (m *mockResourceValidator) CommandExists(command string) bool {
-	return m.commands[command]
-}
-
-func (m *mockResourceValidator) DirectoryExists(path string) bool {
-	return m.directories[path]
-}
-
-type mockDefaultsGenerator struct{}
-
-func (m *mockDefaultsGenerator) DefaultConfigPath(software string) string {
-	return "/etc/" + software + "/" + software + ".conf"
-}
-
-func (m *mockDefaultsGenerator) DefaultLogPath(software string) string {
-	return "/var/log/" + software + ".log"
-}
-
-func (m *mockDefaultsGenerator) DefaultDataDir(software string) string {
-	return "/var/lib/" + software
-}
-
-func (m *mockDefaultsGenerator) DefaultServiceName(software string) string {
-	return software
-}
-
-func (m *mockDefaultsGenerator) DefaultCommandPath(software string) string {
-	return "/usr/bin/" + software
-}
+// Use the existing mock implementations from mocks_test.go
 
 func TestNewTemplateEngine(t *testing.T) {
 	validator := NewMockResourceValidator()
@@ -95,13 +51,13 @@ func TestTemplateEngine_SaiPackageFunction(t *testing.T) {
 		},
 		Packages: []types.Package{
 			{Name: "apache2", PackageName: "apache2-server", Version: "2.4.58"},
-			{Name: "apache2-utils", Version: "2.4.58"},
+			{Name: "apache2-utils", PackageName: "apache2-utils", Version: "2.4.58"},
 		},
 		Providers: map[string]types.ProviderConfig{
 			"apt": {
 				Packages: []types.Package{
 					{Name: "apache2", PackageName: "apache2-deb", Version: "2.4.58-1ubuntu1"},
-					{Name: "apache2-utils", Version: "2.4.58-1ubuntu1"},
+					{Name: "apache2-utils", PackageName: "apache2-utils", Version: "2.4.58-1ubuntu1"},
 				},
 			},
 			"brew": {
@@ -136,13 +92,18 @@ func TestTemplateEngine_SaiPackageFunction(t *testing.T) {
 			expected: "apache2-utils",
 		},
 		{
-			name:     "sai_package legacy format - single package",
+			name:     "sai_package legacy format - single package (name field)",
 			template: "{{sai_package 0 \"name\" \"apt\"}}",
+			expected: "apache2",
+		},
+		{
+			name:     "sai_package legacy format - single package (package_name field)",
+			template: "{{sai_package 0 \"package_name\" \"apt\"}}",
 			expected: "apache2-deb",
 		},
 		{
-			name:     "sai_package legacy format - all packages",
-			template: "{{sai_package \"*\" \"name\" \"apt\"}}",
+			name:     "sai_package legacy format - all packages (package_name field)",
+			template: "{{sai_package \"*\" \"package_name\" \"apt\"}}",
 			expected: "apache2-deb apache2-utils",
 		},
 		{
@@ -716,7 +677,7 @@ func TestTemplateEngine_ErrorHandling(t *testing.T) {
 		},
 		{
 			name:        "legacy format with missing data",
-			template:    "{{sai_package 0 \"name\" \"apt\"}}",
+			template:    "{{sai_package 0 \"package_name\" \"apt\"}}",
 			expectError: true,
 			errorType:   "no package found",
 		},
@@ -750,7 +711,7 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 			Name: "apache",
 		},
 		Packages: []types.Package{
-			{Name: "apache2", Version: "2.4.58"},
+			{Name: "apache2", PackageName: "apache2", Version: "2.4.58"},
 		},
 		Services: []types.Service{
 			{Name: "apache", ServiceName: "apache2", Type: "systemd"},
@@ -765,7 +726,7 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 		Providers: map[string]types.ProviderConfig{
 			"apt": {
 				Packages: []types.Package{
-					{Name: "apache2", Version: "2.4.58-1ubuntu1"},
+					{Name: "apache2", PackageName: "apache2", Version: "2.4.58-1ubuntu1"},
 				},
 				Services: []types.Service{
 					{Name: "apache", ServiceName: "apache2", Type: "systemd"},
@@ -773,7 +734,7 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 			},
 			"brew": {
 				Packages: []types.Package{
-					{Name: "httpd", Version: "2.4.58"},
+					{Name: "httpd", PackageName: "httpd", Version: "2.4.58"},
 				},
 				Services: []types.Service{
 					{Name: "apache", ServiceName: "httpd", Type: "launchd"},
@@ -797,8 +758,8 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "apt install template",
-			template: "apt-get install -y {{sai_package \"*\" \"name\" \"apt\"}}",
+			name:     "apt install template (updated to use package_name)",
+			template: "apt-get install -y {{sai_package \"*\" \"package_name\" \"apt\"}}",
 			expected: "apt-get install -y apache2",
 		},
 		{
@@ -807,8 +768,8 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 			expected: "systemctl start apache2",
 		},
 		{
-			name:     "brew install template",
-			template: "brew install {{sai_package 0 \"name\" \"brew\"}}",
+			name:     "brew install template (updated to use package_name)",
+			template: "brew install {{sai_package 0 \"package_name\" \"brew\"}}",
 			expected: "brew install httpd",
 		},
 		{
@@ -823,6 +784,531 @@ func TestTemplateEngine_WithExistingSaidataFiles(t *testing.T) {
 			result, err := engine.Render(tt.template, context)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestTemplateEngine_SaiSourceFunction(t *testing.T) {
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
+	engine := NewTemplateEngine(validator, defaultsGen)
+
+	saidata := &types.SoftwareData{
+		Version: "0.2",
+		Metadata: types.Metadata{
+			Name: "nginx",
+		},
+		Sources: []types.Source{
+			{
+				Name:        "nginx-source",
+				URL:         "https://nginx.org/download/nginx-1.20.1.tar.gz",
+				Version:     "1.20.1",
+				BuildSystem: "autotools",
+				ConfigureArgs: []string{"--with-http_ssl_module"},
+				Prerequisites: []string{"gcc", "make", "libssl-dev"},
+				Checksum:    "abc123def456",
+			},
+		},
+		Providers: map[string]types.ProviderConfig{
+			"source": {
+				Sources: []types.Source{
+					{
+						Name:        "nginx-source",
+						URL:         "https://nginx.org/download/nginx-1.20.1.tar.gz",
+						Version:     "1.20.1",
+						BuildSystem: "cmake",
+						InstallPrefix: "/opt/nginx",
+						ConfigureArgs: []string{"--with-http_ssl_module", "--with-debug"},
+					},
+				},
+			},
+		},
+	}
+
+	engine.SetSaidata(saidata)
+
+	context := &TemplateContext{
+		Software: "nginx",
+		Provider: "source",
+		Saidata:  saidata,
+	}
+
+	tests := []struct {
+		name     string
+		template string
+		expected string
+	}{
+		{
+			name:     "sai_source name field",
+			template: "{{sai_source 0 \"name\"}}",
+			expected: "nginx-source",
+		},
+		{
+			name:     "sai_source url field",
+			template: "{{sai_source 0 \"url\"}}",
+			expected: "https://nginx.org/download/nginx-1.20.1.tar.gz",
+		},
+		{
+			name:     "sai_source build_system field with provider override",
+			template: "{{sai_source 0 \"build_system\" \"source\"}}",
+			expected: "cmake",
+		},
+		{
+			name:     "sai_source build_dir field with default",
+			template: "{{sai_source 0 \"build_dir\"}}",
+			expected: "/tmp/sai-build-nginx",
+		},
+		{
+			name:     "sai_source install_prefix field with provider override",
+			template: "{{sai_source 0 \"install_prefix\" \"source\"}}",
+			expected: "/opt/nginx",
+		},
+		{
+			name:     "sai_source configure_args field",
+			template: "{{sai_source 0 \"configure_args\" \"source\"}}",
+			expected: "--with-http_ssl_module --with-debug",
+		},
+		{
+			name:     "sai_source prerequisites field",
+			template: "{{sai_source 0 \"prerequisites\"}}",
+			expected: "gcc make libssl-dev",
+		},
+		{
+			name:     "sai_source download_cmd field",
+			template: "{{sai_source 0 \"download_cmd\"}}",
+			expected: "mkdir -p /tmp/sai-build-nginx && cd /tmp/sai-build-nginx && curl -L -o nginx-1.20.1.tar.gz https://nginx.org/download/nginx-1.20.1.tar.gz",
+		},
+		{
+			name:     "sai_source configure_cmd field with cmake",
+			template: "{{sai_source 0 \"configure_cmd\" \"source\"}}",
+			expected: "cd /tmp/sai-build-nginx/nginx-1.20.1 && cmake -DCMAKE_INSTALL_PREFIX=/opt/nginx . --with-http_ssl_module --with-debug",
+		},
+		{
+			name:     "sai_source build_cmd field with cmake",
+			template: "{{sai_source 0 \"build_cmd\" \"source\"}}",
+			expected: "cd /tmp/sai-build-nginx/nginx-1.20.1 && cmake --build .",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := engine.Render(tt.template, context)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestTemplateEngine_SaiBinaryFunction(t *testing.T) {
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
+	engine := NewTemplateEngine(validator, defaultsGen)
+
+	saidata := &types.SoftwareData{
+		Version: "0.2",
+		Metadata: types.Metadata{
+			Name: "terraform",
+		},
+		Binaries: []types.Binary{
+			{
+				Name:         "terraform",
+				URL:          "https://releases.hashicorp.com/terraform/1.5.0/terraform_1.5.0_{{.OS}}_{{.Arch}}.zip",
+				Version:      "1.5.0",
+				Architecture: "amd64",
+				Platform:     "linux",
+				Checksum:     "abc123def456789012345678901234567890123456789012345678901234567890",
+				Archive: &types.ArchiveConfig{
+					Format:      "zip",
+					ExtractPath: "terraform",
+				},
+			},
+		},
+		Providers: map[string]types.ProviderConfig{
+			"binary": {
+				Binaries: []types.Binary{
+					{
+						Name:        "terraform",
+						URL:         "https://releases.hashicorp.com/terraform/1.5.0/terraform_1.5.0_{{.OS}}_{{.Arch}}.zip",
+						Version:     "1.5.0",
+						InstallPath: "/opt/terraform/bin",
+						Executable:  "terraform",
+						Permissions: "0755",
+					},
+				},
+			},
+		},
+	}
+
+	engine.SetSaidata(saidata)
+
+	context := &TemplateContext{
+		Software: "terraform",
+		Provider: "binary",
+		Saidata:  saidata,
+	}
+
+	tests := []struct {
+		name     string
+		template string
+		expected string
+	}{
+		{
+			name:     "sai_binary name field",
+			template: "{{sai_binary 0 \"name\"}}",
+			expected: "terraform",
+		},
+		{
+			name:     "sai_binary url field with templating",
+			template: "{{sai_binary 0 \"url\"}}",
+			expected: "https://releases.hashicorp.com/terraform/1.5.0/terraform_1.5.0_darwin_arm64.zip", // Updated for current platform
+		},
+		{
+			name:     "sai_binary install_path field with provider override",
+			template: "{{sai_binary 0 \"install_path\" \"binary\"}}",
+			expected: "/opt/terraform/bin",
+		},
+		{
+			name:     "sai_binary executable field with provider override",
+			template: "{{sai_binary 0 \"executable\" \"binary\"}}",
+			expected: "terraform",
+		},
+		{
+			name:     "sai_binary permissions field with provider override",
+			template: "{{sai_binary 0 \"permissions\" \"binary\"}}",
+			expected: "0755",
+		},
+		{
+			name:     "sai_binary download_cmd field",
+			template: "{{sai_binary 0 \"download_cmd\" \"binary\"}}",
+			expected: "mkdir -p /opt/terraform/bin && curl -L -o /opt/terraform/bin/terraform_1.5.0_darwin_arm64.zip https://releases.hashicorp.com/terraform/1.5.0/terraform_1.5.0_darwin_arm64.zip",
+		},
+		{
+			name:     "sai_binary verify_checksum_cmd field",
+			template: "{{sai_binary 0 \"verify_checksum_cmd\"}}",
+			expected: "echo 'abc123def456789012345678901234567890123456789012345678901234567890 /usr/local/bin/terraform_1.5.0_darwin_arm64.zip' | sha256sum -c",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := engine.Render(tt.template, context)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestTemplateEngine_SaiScriptFunction(t *testing.T) {
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
+	engine := NewTemplateEngine(validator, defaultsGen)
+
+	saidata := &types.SoftwareData{
+		Version: "0.2",
+		Metadata: types.Metadata{
+			Name: "docker",
+		},
+		Scripts: []types.Script{
+			{
+				Name:        "docker-install",
+				URL:         "https://get.docker.com/",
+				Version:     "latest",
+				Interpreter: "bash",
+				Arguments:   []string{"--channel", "stable"},
+				Environment: map[string]string{
+					"DOCKER_CHANNEL": "stable",
+					"DOCKER_COMPOSE": "true",
+				},
+				WorkingDir: "/tmp",
+				Timeout:    600,
+				Checksum:   "def456abc789",
+			},
+		},
+		Providers: map[string]types.ProviderConfig{
+			"script": {
+				Scripts: []types.Script{
+					{
+						Name:        "docker-install",
+						URL:         "https://get.docker.com/",
+						Interpreter: "bash",
+						Arguments:   []string{"--channel", "stable", "--dry-run"},
+						WorkingDir:  "/opt/docker",
+						Timeout:     300,
+					},
+				},
+			},
+		},
+	}
+
+	engine.SetSaidata(saidata)
+
+	context := &TemplateContext{
+		Software: "docker",
+		Provider: "script",
+		Saidata:  saidata,
+	}
+
+	tests := []struct {
+		name     string
+		template string
+		expected string
+	}{
+		{
+			name:     "sai_script name field",
+			template: "{{sai_script 0 \"name\"}}",
+			expected: "docker-install",
+		},
+		{
+			name:     "sai_script url field",
+			template: "{{sai_script 0 \"url\"}}",
+			expected: "https://get.docker.com/",
+		},
+		{
+			name:     "sai_script interpreter field",
+			template: "{{sai_script 0 \"interpreter\"}}",
+			expected: "bash",
+		},
+		{
+			name:     "sai_script arguments field with provider override",
+			template: "{{sai_script 0 \"arguments\" \"script\"}}",
+			expected: "--channel stable --dry-run",
+		},
+		{
+			name:     "sai_script working_dir field with provider override",
+			template: "{{sai_script 0 \"working_dir\" \"script\"}}",
+			expected: "/opt/docker",
+		},
+		{
+			name:     "sai_script timeout field with provider override",
+			template: "{{sai_script 0 \"timeout\" \"script\"}}",
+			expected: "300",
+		},
+		{
+			name:     "sai_script download_cmd field",
+			template: "{{sai_script 0 \"download_cmd\" \"script\"}}",
+			expected: "mkdir -p /opt/docker && cd /opt/docker && curl -L -o install.sh https://get.docker.com/",
+		},
+		{
+			name:     "sai_script execute_cmd field",
+			template: "{{sai_script 0 \"execute_cmd\" \"script\"}}",
+			expected: "cd /opt/docker && timeout 300 bash install.sh --channel stable --dry-run",
+		},
+		{
+			name:     "sai_script environment_vars field",
+			template: "{{sai_script 0 \"environment_vars\"}}",
+			expected: "export DOCKER_CHANNEL='stable' && export DOCKER_COMPOSE='true'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := engine.Render(tt.template, context)
+			require.NoError(t, err)
+			assert.Contains(t, result, tt.expected)
+		})
+	}
+}
+
+func TestTemplateEngine_AlternativeProviderErrorHandling(t *testing.T) {
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
+	engine := NewTemplateEngine(validator, defaultsGen)
+
+	tests := []struct {
+		name        string
+		saidata     *types.SoftwareData
+		template    string
+		expectError bool
+		errorType   string
+	}{
+		{
+			name: "missing source should fail",
+			saidata: &types.SoftwareData{
+				Version: "0.2",
+				Metadata: types.Metadata{Name: "test"},
+			},
+			template:    "{{sai_source 0 \"name\"}}",
+			expectError: true,
+			errorType:   "no source found",
+		},
+		{
+			name: "missing binary should fail",
+			saidata: &types.SoftwareData{
+				Version: "0.2",
+				Metadata: types.Metadata{Name: "test"},
+			},
+			template:    "{{sai_binary 0 \"name\"}}",
+			expectError: true,
+			errorType:   "no binary found",
+		},
+		{
+			name: "missing script should fail",
+			saidata: &types.SoftwareData{
+				Version: "0.2",
+				Metadata: types.Metadata{Name: "test"},
+			},
+			template:    "{{sai_script 0 \"name\"}}",
+			expectError: true,
+			errorType:   "no script found",
+		},
+		{
+			name: "invalid source field should fail",
+			saidata: &types.SoftwareData{
+				Version: "0.2",
+				Metadata: types.Metadata{Name: "test"},
+				Sources: []types.Source{
+					{Name: "test-source", URL: "https://example.com", BuildSystem: "make"},
+				},
+			},
+			template:    "{{sai_source 0 \"invalid_field\"}}",
+			expectError: true,
+			errorType:   "unsupported source field",
+		},
+		{
+			name: "invalid binary field should fail",
+			saidata: &types.SoftwareData{
+				Version: "0.2",
+				Metadata: types.Metadata{Name: "test"},
+				Binaries: []types.Binary{
+					{Name: "test-binary", URL: "https://example.com/binary"},
+				},
+			},
+			template:    "{{sai_binary 0 \"invalid_field\"}}",
+			expectError: true,
+			errorType:   "unsupported binary field",
+		},
+		{
+			name: "invalid script field should fail",
+			saidata: &types.SoftwareData{
+				Version: "0.2",
+				Metadata: types.Metadata{Name: "test"},
+				Scripts: []types.Script{
+					{Name: "test-script", URL: "https://example.com/script.sh"},
+				},
+			},
+			template:    "{{sai_script 0 \"invalid_field\"}}",
+			expectError: true,
+			errorType:   "unsupported script field",
+		},
+		{
+			name: "insufficient arguments for sai_source",
+			saidata: &types.SoftwareData{
+				Version: "0.2",
+				Metadata: types.Metadata{Name: "test"},
+			},
+			template:    "{{sai_source 0}}",
+			expectError: true,
+			errorType:   "requires at least 2 arguments",
+		},
+		{
+			name: "insufficient arguments for sai_binary",
+			saidata: &types.SoftwareData{
+				Version: "0.2",
+				Metadata: types.Metadata{Name: "test"},
+			},
+			template:    "{{sai_binary 0}}",
+			expectError: true,
+			errorType:   "requires at least 2 arguments",
+		},
+		{
+			name: "insufficient arguments for sai_script",
+			saidata: &types.SoftwareData{
+				Version: "0.2",
+				Metadata: types.Metadata{Name: "test"},
+			},
+			template:    "{{sai_script 0}}",
+			expectError: true,
+			errorType:   "requires at least 2 arguments",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			engine.SetSaidata(tt.saidata)
+			
+			context := &TemplateContext{
+				Software: "test",
+				Provider: "source",
+				Saidata:  tt.saidata,
+			}
+			
+			result, err := engine.Render(tt.template, context)
+			
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorType)
+				assert.Empty(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotEmpty(t, result)
+			}
+		})
+	}
+}
+
+func TestTemplateEngine_AlternativeProviderGracefulDegradation(t *testing.T) {
+	validator := NewMockResourceValidator()
+	defaultsGen := NewMockDefaultsGenerator()
+	engine := NewTemplateEngine(validator, defaultsGen)
+
+	// Test graceful degradation when template functions fail
+	saidata := &types.SoftwareData{
+		Version: "0.2",
+		Metadata: types.Metadata{
+			Name: "test-software",
+		},
+		// No sources, binaries, or scripts defined
+	}
+
+	engine.SetSaidata(saidata)
+	engine.SetSafetyMode(true) // Enable safety mode to catch errors
+
+	context := &TemplateContext{
+		Software: "test-software",
+		Provider: "source",
+		Saidata:  saidata,
+	}
+
+	// Test that templates with missing alternative provider data fail gracefully
+	tests := []struct {
+		name        string
+		template    string
+		expectError bool
+		description string
+	}{
+		{
+			name:        "source template with missing data should fail",
+			template:    "cd {{sai_source 0 \"source_dir\"}} && make install",
+			expectError: true,
+			description: "Template should fail when source data is missing",
+		},
+		{
+			name:        "binary template with missing data should fail",
+			template:    "curl -L {{sai_binary 0 \"url\"}} -o /tmp/binary",
+			expectError: true,
+			description: "Template should fail when binary data is missing",
+		},
+		{
+			name:        "script template with missing data should fail",
+			template:    "bash {{sai_script 0 \"download_cmd\"}}",
+			expectError: true,
+			description: "Template should fail when script data is missing",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := engine.Render(tt.template, context)
+			
+			if tt.expectError {
+				assert.Error(t, err, tt.description)
+				assert.Empty(t, result)
+				// Verify the error contains helpful information
+				assert.Contains(t, err.Error(), "Template resolution failed")
+			} else {
+				assert.NoError(t, err, tt.description)
+				assert.NotEmpty(t, result)
+			}
 		})
 	}
 }

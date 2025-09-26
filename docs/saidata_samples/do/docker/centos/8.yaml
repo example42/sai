@@ -1,0 +1,80 @@
+version: "0.2"
+
+# CentOS 8 specific overrides for docker script installation
+services:
+  - name: "daemon"
+    service_name: "docker"
+    type: "systemd"
+    enabled: true
+    config_files: ["/etc/docker/daemon.json"]
+
+files:
+  - name: "config"
+    path: "/etc/docker/daemon.json"
+    type: "config"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    backup: true
+  - name: "socket"
+    path: "/var/run/docker.sock"
+    type: "socket"
+    owner: "root"
+    group: "docker"
+    mode: "0660"
+
+directories:
+  - name: "config"
+    path: "/etc/docker"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  - name: "data"
+    path: "/var/lib/docker"
+    owner: "root"
+    group: "root"
+    mode: "0711"
+
+scripts:
+  - name: "convenience"
+    url: "https://get.docker.com"
+    version: "24.0.0"
+    interpreter: "bash"
+    checksum: "sha256:b5b2b2c507a0944348e0303114d8d93aaaa081732b86451d9bce1f432a537bc7"
+    arguments: ["--channel", "stable"]
+    environment:
+      CHANNEL: "stable"
+      DOWNLOAD_URL: "https://download.docker.com"
+      DRY_RUN: "0"
+      SKIP_NON_ROOT_USER: "0"
+    working_dir: "/tmp"
+    timeout: 600
+    custom_commands:
+      download: "curl -fsSL https://get.docker.com -o get-docker.sh && echo '{{checksum}}  get-docker.sh' | sha256sum -c"
+      install: "chmod +x get-docker.sh && ./get-docker.sh {{arguments | join(' ')}} && systemctl enable docker && systemctl start docker && usermod -aG docker $USER && firewall-cmd --permanent --zone=public --add-masquerade && firewall-cmd --reload"
+      uninstall: "systemctl stop docker && systemctl disable docker && dnf remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin && rm -rf /var/lib/docker /etc/docker && groupdel docker && firewall-cmd --permanent --zone=public --remove-masquerade && firewall-cmd --reload"
+      validation: "docker --version && systemctl is-active docker && docker run hello-world"
+      version: "docker --version | cut -d' ' -f3 | tr -d ','"
+
+providers:
+  script:
+    scripts:
+      - name: "convenience"
+        url: "https://get.docker.com"
+        version: "24.0.0"
+        interpreter: "bash"
+        checksum: "sha256:b5b2b2c507a0944348e0303114d8d93aaaa081732b86451d9bce1f432a537bc7"
+        arguments: ["--channel", "stable"]
+        environment:
+          CHANNEL: "stable"
+          DOWNLOAD_URL: "https://download.docker.com"
+          DRY_RUN: "0"
+          SKIP_NON_ROOT_USER: "0"
+        working_dir: "/tmp"
+        timeout: 600
+        custom_commands:
+          download: "curl -fsSL https://get.docker.com -o get-docker.sh && echo '{{checksum}}  get-docker.sh' | sha256sum -c"
+          install: "chmod +x get-docker.sh && ./get-docker.sh {{arguments | join(' ')}} && systemctl enable docker && systemctl start docker && usermod -aG docker $USER && firewall-cmd --permanent --zone=public --add-masquerade && firewall-cmd --reload"
+          uninstall: "systemctl stop docker && systemctl disable docker && dnf remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin && rm -rf /var/lib/docker /etc/docker && groupdel docker && firewall-cmd --permanent --zone=public --remove-masquerade && firewall-cmd --reload"
+          validation: "docker --version && systemctl is-active docker"
+          version: "docker --version | cut -d' ' -f3 | tr -d ','"

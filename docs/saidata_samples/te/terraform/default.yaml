@@ -4,77 +4,63 @@ metadata:
   name: "terraform"
   display_name: "Terraform"
   description: "Infrastructure as Code tool for building, changing, and versioning infrastructure"
-  version: "1.5.0"
+  version: "1.6.6"
   category: "infrastructure"
   subcategory: "iac"
-  tags: ["terraform", "infrastructure", "iac", "devops", "cloud"]
+  tags: ["terraform", "infrastructure", "iac", "cloud", "provisioning"]
   license: "MPL-2.0"
   language: "Go"
   maintainer: "HashiCorp"
   urls:
     website: "https://www.terraform.io"
-    documentation: "https://www.terraform.io/docs"
+    documentation: "https://developer.hashicorp.com/terraform/docs"
     source: "https://github.com/hashicorp/terraform"
     issues: "https://github.com/hashicorp/terraform/issues"
-    support: "https://www.terraform.io/community"
-    download: "https://releases.hashicorp.com/terraform"
+    support: "https://support.hashicorp.com"
+    download: "https://releases.hashicorp.com/terraform/"
     changelog: "https://github.com/hashicorp/terraform/blob/main/CHANGELOG.md"
     license: "https://github.com/hashicorp/terraform/blob/main/LICENSE"
-  security:
-    security_contact: "security@hashicorp.com"
-    vulnerability_disclosure: "https://www.hashicorp.com/security"
 
 packages:
   - name: "terraform"
     package_name: "terraform"
-    version: "1.5.0"
-    checksum: "sha256:..."
-    download_url: "https://releases.hashicorp.com/terraform/1.5.0/terraform_1.5.0_linux_amd64.zip"
+    version: "1.6.6"
 
 files:
-  - name: "config"
-    path: "~/.terraformrc"
-    type: "config"
-    owner: "$(whoami)"
-    group: "$(whoami)"
-    mode: "0644"
-    backup: true
-  - name: "credentials"
-    path: "~/.terraform.d/credentials.tfrc.json"
-    type: "config"
-    owner: "$(whoami)"
-    group: "$(whoami)"
-    mode: "0600"
-    backup: true
-  - name: "log"
-    path: "/tmp/terraform.log"
-    type: "log"
-    owner: "$(whoami)"
-    group: "$(whoami)"
-    mode: "0644"
-
-directories:
-  - name: "config"
-    path: "~/.terraform.d"
-    owner: "$(whoami)"
-    group: "$(whoami)"
-    mode: "0755"
-  - name: "plugins"
-    path: "~/.terraform.d/plugins"
-    owner: "$(whoami)"
-    group: "$(whoami)"
-    mode: "0755"
-  - name: "cache"
-    path: "~/.terraform.d/plugin-cache"
-    owner: "$(whoami)"
-    group: "$(whoami)"
+  - name: "binary"
+    path: "/usr/local/bin/terraform"
+    type: "binary"
+    owner: "root"
+    group: "root"
     mode: "0755"
 
 commands:
   - name: "terraform"
     path: "/usr/local/bin/terraform"
-    shell_completion: true
-    aliases: ["tf"]
+    arguments: ["init", "plan", "apply", "destroy", "validate", "fmt", "show", "state"]
+    man_page: "terraform(1)"
+
+binaries:
+  - name: "main"
+    url: "https://releases.hashicorp.com/terraform/{{version}}/terraform_{{version}}_{{os}}_{{arch}}.zip"
+    version: "1.6.6"
+    architecture: "{{arch}}"
+    platform: "{{os}}"
+    checksum: "sha256:b8a3892c58c33ee2b4b8e7c2c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8"
+    install_path: "/usr/local/bin"
+    executable: "terraform"
+    permissions: "0755"
+    archive:
+      format: "zip"
+      strip_prefix: ""
+      extract_path: "/tmp/sai-terraform-extract"
+    custom_commands:
+      download: "wget -O terraform_{{version}}_{{os}}_{{arch}}.zip {{url}} && echo '{{checksum}}  terraform_{{version}}_{{os}}_{{arch}}.zip' | sha256sum -c"
+      extract: "unzip -o terraform_{{version}}_{{os}}_{{arch}}.zip -d {{archive.extract_path}}"
+      install: "cp {{archive.extract_path}}/terraform {{install_path}}/terraform && chmod {{permissions}} {{install_path}}/terraform"
+      uninstall: "rm -f {{install_path}}/terraform"
+      validation: "{{install_path}}/terraform version"
+      version: "{{install_path}}/terraform version | head -n1 | grep -o 'v[0-9.]*'"
 
 providers:
   apt:
@@ -83,46 +69,50 @@ providers:
         url: "https://apt.releases.hashicorp.com"
         key: "https://apt.releases.hashicorp.com/gpg"
         type: "upstream"
-        recommended: true
         packages:
           - name: "terraform"
             package_name: "terraform"
-            version: "1.5.0"
+            version: "1.6.6"
+        recommended: true
 
   dnf:
     repositories:
       - name: "hashicorp-official"
         url: "https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo"
         type: "upstream"
-        recommended: true
         packages:
           - name: "terraform"
             package_name: "terraform"
-            version: "1.5.0"
+            version: "1.6.6"
+        recommended: true
 
   brew:
     packages:
       - name: "terraform"
         package_name: "terraform"
-        alternatives: ["terraform"]
 
-  snap:
-    packages:
-      - name: "terraform"
-        package_name: "terraform"
-        alternatives: ["terraform"]
-
-  docker:
-    containers:
-      - name: "terraform"
-        image: "hashicorp/terraform"
-        tag: "1.5.0"
-        registry: "docker.io"
-        volumes: ["/workspace:/workspace"]
-        environment:
-          TF_LOG: "INFO"
-        labels:
-          purpose: "infrastructure-as-code"
+  binary:
+    binaries:
+      - name: "main"
+        url: "https://releases.hashicorp.com/terraform/{{version}}/terraform_{{version}}_{{os}}_{{arch}}.zip"
+        version: "1.6.6"
+        architecture: "{{arch}}"
+        platform: "{{os}}"
+        checksum: "sha256:b8a3892c58c33ee2b4b8e7c2c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8"
+        install_path: "/usr/local/bin"
+        executable: "terraform"
+        permissions: "0755"
+        archive:
+          format: "zip"
+          strip_prefix: ""
+          extract_path: "/tmp/sai-terraform-extract"
+        custom_commands:
+          download: "wget -O terraform_{{version}}_{{os}}_{{arch}}.zip {{url}}"
+          extract: "unzip -o terraform_{{version}}_{{os}}_{{arch}}.zip -d {{archive.extract_path}}"
+          install: "cp {{archive.extract_path}}/terraform {{install_path}}/terraform && chmod {{permissions}} {{install_path}}/terraform"
+          uninstall: "rm -f {{install_path}}/terraform"
+          validation: "{{install_path}}/terraform version"
+          version: "{{install_path}}/terraform version | head -n1 | grep -o 'v[0-9.]*'"
 
 compatibility:
   matrix:
@@ -133,7 +123,7 @@ compatibility:
       recommended: true
       tested: true
     - provider: "dnf"
-      platform: ["fedora", "rhel", "centos"]
+      platform: ["fedora", "rhel", "centos", "rocky", "alma"]
       architecture: ["amd64", "arm64"]
       supported: true
       recommended: true
@@ -142,12 +132,9 @@ compatibility:
       architecture: ["amd64", "arm64"]
       supported: true
       recommended: true
-    - provider: "snap"
-      platform: "linux"
-      architecture: ["amd64", "arm64"]
-      supported: true
-    - provider: "docker"
+    - provider: "binary"
       platform: ["linux", "macos", "windows"]
-      architecture: ["amd64", "arm64"]
+      architecture: ["amd64", "arm64", "386"]
       supported: true
-      notes: "Containerized execution environment"
+      recommended: true
+      notes: "Direct binary download from HashiCorp releases"

@@ -8,7 +8,7 @@ provider:
   type: "package_manager"
   platforms: ["rhel", "centos", "scientific"]
   executable: "yum"  # Main executable for availability detection
-  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version"]
 
 actions:
   install:
@@ -34,37 +34,11 @@ actions:
     template: "yum update -y {{sai_package('*', 'package_name', 'yum')}}"
     timeout: 600
     detection: "rpm -qa | grep -q {{sai_package(0, 'package_name', 'yum')}}"
-
-  start:
-    description: "Start service via service command"
-    template: "service {{sai_service(0, 'service_name', 'yum')}} start"
     validation:
-      command: "service {{sai_service(0, 'service_name', 'yum')}} status"
+      command: "rpm -qa | grep {{sai_package(0, 'package_name', 'yum')}}"
       expected_exit_code: 0
 
-  stop:
-    description: "Stop service via service command"
-    template: "service {{sai_service(0, 'service_name', 'yum')}} stop"
 
-  restart:
-    description: "Restart service via service command"
-    template: "service {{sai_service(0, 'service_name', 'yum')}} restart"
-
-  enable:
-    description: "Enable service auto-start"
-    template: "chkconfig {{sai_service(0, 'service_name', 'yum')}} on"
-
-  disable:
-    description: "Disable service auto-start"
-    template: "chkconfig {{sai_service(0, 'service_name', 'yum')}} off"
-
-  status:
-    description: "Check service status"
-    template: "service {{sai_service(0, 'service_name', 'yum')}} status"
-
-  logs:
-    description: "Show service logs"
-    template: "tail -n 50 {{sai_file('log', 'path', 'yum')}}"
 
   info:
     description: "Show package information"

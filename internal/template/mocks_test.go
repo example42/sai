@@ -43,28 +43,28 @@ func (m *MockResourceValidator) FileExists(path string) bool {
 	if exists, ok := m.fileExists[path]; ok {
 		return exists
 	}
-	return true
+	return false
 }
 
 func (m *MockResourceValidator) ServiceExists(service string) bool {
 	if exists, ok := m.serviceExists[service]; ok {
 		return exists
 	}
-	return true
+	return false
 }
 
 func (m *MockResourceValidator) CommandExists(command string) bool {
 	if exists, ok := m.commandExists[command]; ok {
 		return exists
 	}
-	return true
+	return false
 }
 
 func (m *MockResourceValidator) DirectoryExists(path string) bool {
 	if exists, ok := m.directoryExists[path]; ok {
 		return exists
 	}
-	return true
+	return false
 }
 
 // interfaces.ResourceValidator interface methods (for compatibility)

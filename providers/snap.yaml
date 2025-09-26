@@ -8,7 +8,7 @@ provider:
   type: "package_manager"
   platforms: ["ubuntu", "fedora", "debian", "opensuse", "arch"]
   executable: "snap"  # Main executable for availability detection
-  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "enable", "disable", "status", "logs"]
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version"]
 
 actions:
   install:
@@ -36,6 +36,9 @@ actions:
     template: "snap refresh {{sai_package(0, 'package_name', 'snap')}}"
     timeout: 600
     detection: "snap list | grep -q '^{{sai_package(0, 'package_name', 'snap')}}'"
+    validation:
+      command: "snap list | grep {{sai_package(0, 'package_name', 'snap')}}"
+      expected_exit_code: 0
 
   start:
     description: "Start snap service"
@@ -48,6 +51,8 @@ actions:
     description: "Stop snap service"
     template: "snap stop {{sai_package(0, 'package_name', 'snap')}}.{{sai_service(0, 'service_name', 'snap')}}"
     validation:
+      command: "snap services | grep {{sai_package(0, 'package_name', 'snap')}}.{{sai_service(0, 'service_name', 'snap')}} | grep inactive"
+      expected_exit_code: 0
       command: "snap services | grep {{sai_package(0, 'package_name', 'snap')}}.{{sai_service(0, 'service_name', 'snap')}} | grep inactive"
       expected_exit_code: 0
 

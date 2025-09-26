@@ -8,7 +8,7 @@ provider:
   type: "package_manager"
   platforms: ["linux", "macos", "windows"]
   executable: "mvn"  # Main executable for availability detection
-  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "status"]
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version"]
 
 actions:
   install:

@@ -8,7 +8,7 @@ provider:
   type: "package_manager"
   platforms: ["linux", "macos", "windows"]
   executable: "dotnet"  # Main executable for availability detection
-  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "status"]
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version"]
 
 actions:
   install:
@@ -35,26 +35,7 @@ actions:
     timeout: 300
     detection: "nuget list {{sai_package(0, 'package_name', 'nuget')}} >/dev/null 2>&1"
 
-  start:
-    description: "Start .NET application"
-    template: "{{sai_command(0, 'path', 'nuget')}}"
 
-  stop:
-    description: "Stop .NET application"
-    template: "pkill -f {{sai_package(0, 'package_name', 'nuget')}}"
-
-  restart:
-    description: "Restart .NET application"
-    steps:
-      - name: "stop-app"
-        command: "pkill -f {{sai_package(0, 'package_name', 'nuget')}}"
-        ignore_failure: true
-      - name: "start-app"
-        command: "{{sai_command(0, 'path', 'nuget')}}"
-
-  status:
-    description: "Check application status"
-    template: "pgrep -f {{sai_package(0, 'package_name', 'nuget')}}"
 
   info:
     description: "Show package information"

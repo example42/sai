@@ -1,0 +1,172 @@
+version: "0.2"
+
+metadata:
+  name: "brew"
+  display_name: "Homebrew"
+  description: "The Missing Package Manager for macOS (or Linux)"
+  version: "4.1.25"
+  category: "package-manager"
+  subcategory: "system"
+  tags: ["package-manager", "macos", "linux", "cli", "development"]
+  license: "BSD-2-Clause"
+  language: "Ruby"
+  maintainer: "Homebrew Team"
+  urls:
+    website: "https://brew.sh"
+    documentation: "https://docs.brew.sh"
+    source: "https://github.com/Homebrew/brew"
+    issues: "https://github.com/Homebrew/brew/issues"
+    support: "https://github.com/Homebrew/brew/discussions"
+    download: "https://brew.sh"
+    changelog: "https://github.com/Homebrew/brew/releases"
+    license: "https://github.com/Homebrew/brew/blob/master/LICENSE.txt"
+  security:
+    security_contact: "security@brew.sh"
+    vulnerability_disclosure: "https://github.com/Homebrew/brew/security"
+
+packages:
+  - name: "brew"
+    package_name: "brew"
+    version: "4.1.25"
+    alternatives: ["homebrew"]
+
+services: []
+
+files:
+  - name: "config"
+    path: "~/.brewfile"
+    type: "config"
+    owner: "user"
+    group: "user"
+    mode: "0644"
+    backup: true
+    optional: true
+  - name: "env"
+    path: "~/.brew_env"
+    type: "config"
+    owner: "user"
+    group: "user"
+    mode: "0644"
+    backup: true
+    optional: true
+
+directories:
+  - name: "homebrew"
+    path: "/opt/homebrew"
+    owner: "user"
+    group: "admin"
+    mode: "0755"
+    platform: ["macos"]
+    architecture: ["arm64"]
+  - name: "homebrew-intel"
+    path: "/usr/local/Homebrew"
+    owner: "user"
+    group: "admin"
+    mode: "0755"
+    platform: ["macos"]
+    architecture: ["amd64"]
+  - name: "linuxbrew"
+    path: "/home/linuxbrew/.linuxbrew"
+    owner: "user"
+    group: "user"
+    mode: "0755"
+    platform: ["linux"]
+
+commands:
+  - name: "brew"
+    path: "/opt/homebrew/bin/brew"
+    shell_completion: true
+    man_page: "brew(1)"
+    platform: ["macos"]
+    architecture: ["arm64"]
+  - name: "brew-intel"
+    path: "/usr/local/bin/brew"
+    shell_completion: true
+    man_page: "brew(1)"
+    platform: ["macos"]
+    architecture: ["amd64"]
+  - name: "brew-linux"
+    path: "/home/linuxbrew/.linuxbrew/bin/brew"
+    shell_completion: true
+    man_page: "brew(1)"
+    platform: ["linux"]
+
+ports: []
+
+scripts:
+  - name: "install"
+    url: "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+    version: "4.1.25"
+    interpreter: "bash"
+    checksum: "sha256:8b3a2d6b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+    arguments: []
+    environment:
+      NONINTERACTIVE: "1"
+      CI: "1"
+    working_dir: "/tmp"
+    timeout: 1800
+    custom_commands:
+      download: "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o install-brew.sh"
+      install: "chmod +x install-brew.sh && NONINTERACTIVE=1 ./install-brew.sh"
+      uninstall: "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh | NONINTERACTIVE=1 bash"
+      validation: "brew --version"
+      version: "brew --version | head -n1 | cut -d' ' -f2"
+  - name: "uninstall"
+    url: "https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh"
+    version: "4.1.25"
+    interpreter: "bash"
+    checksum: "sha256:9b4a3d7c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c"
+    arguments: []
+    environment:
+      NONINTERACTIVE: "1"
+    working_dir: "/tmp"
+    timeout: 600
+    custom_commands:
+      download: "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh -o uninstall-brew.sh"
+      install: "chmod +x uninstall-brew.sh && NONINTERACTIVE=1 ./uninstall-brew.sh"
+      validation: "! brew --version"
+
+providers:
+  script:
+    scripts:
+      - name: "install"
+        url: "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+        version: "4.1.25"
+        interpreter: "bash"
+        checksum: "sha256:8b3a2d6b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+        arguments: []
+        environment:
+          NONINTERACTIVE: "1"
+          CI: "1"
+        working_dir: "/tmp"
+        timeout: 1800
+        custom_commands:
+          download: "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o install-brew.sh"
+          install: "chmod +x install-brew.sh && NONINTERACTIVE=1 ./install-brew.sh"
+          uninstall: "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh | NONINTERACTIVE=1 bash"
+          validation: "brew --version"
+          version: "brew --version | head -n1 | cut -d' ' -f2"
+      - name: "uninstall"
+        url: "https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh"
+        version: "4.1.25"
+        interpreter: "bash"
+        checksum: "sha256:9b4a3d7c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c"
+        arguments: []
+        environment:
+          NONINTERACTIVE: "1"
+        working_dir: "/tmp"
+        timeout: 600
+        custom_commands:
+          download: "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh -o uninstall-brew.sh"
+          install: "chmod +x uninstall-brew.sh && NONINTERACTIVE=1 ./uninstall-brew.sh"
+          validation: "! brew --version"
+
+compatibility:
+  matrix:
+    - provider: "script"
+      platform: ["macos", "linux"]
+      architecture: ["amd64", "arm64"]
+      supported: true
+      recommended: true
+      tested: true
+      notes: "Official Homebrew installation script"

@@ -1,0 +1,60 @@
+version: "0.2"
+
+# macOS 13 specific overrides for terraform binary installation
+files:
+  - name: "binary"
+    path: "/usr/local/bin/terraform"
+    type: "binary"
+    owner: "root"
+    group: "wheel"
+    mode: "0755"
+
+commands:
+  - name: "terraform"
+    path: "/usr/local/bin/terraform"
+    arguments: ["init", "plan", "apply", "destroy", "validate", "fmt", "show", "state"]
+    man_page: "terraform(1)"
+
+binaries:
+  - name: "main"
+    url: "https://releases.hashicorp.com/terraform/{{version}}/terraform_{{version}}_darwin_amd64.zip"
+    architecture: "amd64"
+    platform: "darwin"
+    checksum: "sha256:c8a3892c58c33ee2b4b8e7c2c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8"
+    install_path: "/usr/local/bin"
+    executable: "terraform"
+    permissions: "0755"
+    archive:
+      format: "zip"
+      strip_prefix: ""
+      extract_path: "/tmp/sai-terraform-extract"
+    custom_commands:
+      download: "curl -L -o terraform_{{version}}_darwin_amd64.zip {{url}} && echo '{{checksum}}  terraform_{{version}}_darwin_amd64.zip' | shasum -a 256 -c"
+      extract: "unzip -o terraform_{{version}}_darwin_amd64.zip -d {{archive.extract_path}}"
+      install: "cp {{archive.extract_path}}/terraform {{install_path}}/terraform && chmod {{permissions}} {{install_path}}/terraform && xattr -d com.apple.quarantine {{install_path}}/terraform 2>/dev/null || true"
+      uninstall: "rm -f {{install_path}}/terraform"
+      validation: "{{install_path}}/terraform version && spctl -a -v {{install_path}}/terraform 2>/dev/null || true"
+      version: "{{install_path}}/terraform version | head -n1 | grep -o 'v[0-9.]*'"
+
+providers:
+  binary:
+    binaries:
+      - name: "main"
+        url: "https://releases.hashicorp.com/terraform/{{version}}/terraform_{{version}}_darwin_amd64.zip"
+        architecture: "amd64"
+        platform: "darwin"
+        checksum: "sha256:c8a3892c58c33ee2b4b8e7c2c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8"
+        install_path: "/usr/local/bin"
+        executable: "terraform"
+        permissions: "0755"
+        archive:
+          format: "zip"
+          strip_prefix: ""
+          extract_path: "/tmp/sai-terraform-extract"
+        custom_commands:
+          download: "curl -L -o terraform_{{version}}_darwin_amd64.zip {{url}} && echo '{{checksum}}  terraform_{{version}}_darwin_amd64.zip' | shasum -a 256 -c"
+          extract: "unzip -o terraform_{{version}}_darwin_amd64.zip -d {{archive.extract_path}}"
+          install: "cp {{archive.extract_path}}/terraform {{install_path}}/terraform && chmod {{permissions}} {{install_path}}/terraform && xattr -d com.apple.quarantine {{install_path}}/terraform 2>/dev/null || true"
+          uninstall: "rm -f {{install_path}}/terraform"
+          validation: "{{install_path}}/terraform version && spctl -a -v {{install_path}}/terraform 2>/dev/null || true"
+          version: "{{install_path}}/terraform version | head -n1 | grep -o 'v[0-9.]*'"

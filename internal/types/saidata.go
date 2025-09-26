@@ -3,6 +3,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -18,6 +19,9 @@ type SoftwareData struct {
 	Commands      []Command                    `yaml:"commands,omitempty" json:"commands,omitempty"`
 	Ports         []Port                       `yaml:"ports,omitempty" json:"ports,omitempty"`
 	Containers    []Container                  `yaml:"containers,omitempty" json:"containers,omitempty"`
+	Sources       []Source                     `yaml:"sources,omitempty" json:"sources,omitempty"`
+	Binaries      []Binary                     `yaml:"binaries,omitempty" json:"binaries,omitempty"`
+	Scripts       []Script                     `yaml:"scripts,omitempty" json:"scripts,omitempty"`
 	Providers     map[string]ProviderConfig    `yaml:"providers,omitempty" json:"providers,omitempty"`
 	Compatibility *Compatibility              `yaml:"compatibility,omitempty" json:"compatibility,omitempty"`
 	Requirements  *Requirements                `yaml:"requirements,omitempty" json:"requirements,omitempty"`
@@ -168,6 +172,9 @@ type ProviderConfig struct {
 	Commands       []Command       `yaml:"commands,omitempty" json:"commands,omitempty"`
 	Ports          []Port          `yaml:"ports,omitempty" json:"ports,omitempty"`
 	Containers     []Container     `yaml:"containers,omitempty" json:"containers,omitempty"`
+	Sources        []Source        `yaml:"sources,omitempty" json:"sources,omitempty"`
+	Binaries       []Binary        `yaml:"binaries,omitempty" json:"binaries,omitempty"`
+	Scripts        []Script        `yaml:"scripts,omitempty" json:"scripts,omitempty"`
 }
 
 // PackageSource represents a package source with priority
@@ -405,6 +412,15 @@ func (s *SoftwareData) ToJSON() ([]byte, error) {
 	if len(s.Containers) > 0 {
 		result["containers"] = s.Containers
 	}
+	if len(s.Sources) > 0 {
+		result["sources"] = s.Sources
+	}
+	if len(s.Binaries) > 0 {
+		result["binaries"] = s.Binaries
+	}
+	if len(s.Scripts) > 0 {
+		result["scripts"] = s.Scripts
+	}
 	if len(s.Providers) > 0 {
 		result["providers"] = s.Providers
 	}
@@ -496,6 +512,114 @@ func (s *SoftwareData) GetProviderConfig(providerName string) *ProviderConfig {
 	return nil
 }
 
+// GetSourceByName returns a source by name
+func (s *SoftwareData) GetSourceByName(name string) *Source {
+	for i, source := range s.Sources {
+		if source.Name == name {
+			return &s.Sources[i]
+		}
+	}
+	return nil
+}
+
+// GetSourceByIndex returns a source by index
+func (s *SoftwareData) GetSourceByIndex(index int) *Source {
+	if index >= 0 && index < len(s.Sources) {
+		return &s.Sources[index]
+	}
+	return nil
+}
+
+// GetBinaryByName returns a binary by name
+func (s *SoftwareData) GetBinaryByName(name string) *Binary {
+	for i, binary := range s.Binaries {
+		if binary.Name == name {
+			return &s.Binaries[i]
+		}
+	}
+	return nil
+}
+
+// GetBinaryByIndex returns a binary by index
+func (s *SoftwareData) GetBinaryByIndex(index int) *Binary {
+	if index >= 0 && index < len(s.Binaries) {
+		return &s.Binaries[index]
+	}
+	return nil
+}
+
+// GetScriptByName returns a script by name
+func (s *SoftwareData) GetScriptByName(name string) *Script {
+	for i, script := range s.Scripts {
+		if script.Name == name {
+			return &s.Scripts[i]
+		}
+	}
+	return nil
+}
+
+// GetScriptByIndex returns a script by index
+func (s *SoftwareData) GetScriptByIndex(index int) *Script {
+	if index >= 0 && index < len(s.Scripts) {
+		return &s.Scripts[index]
+	}
+	return nil
+}
+
+// GetSourceByName returns a provider-specific source by name
+func (p *ProviderConfig) GetSourceByName(name string) *Source {
+	for i, source := range p.Sources {
+		if source.Name == name {
+			return &p.Sources[i]
+		}
+	}
+	return nil
+}
+
+// GetSourceByIndex returns a provider-specific source by index
+func (p *ProviderConfig) GetSourceByIndex(index int) *Source {
+	if index >= 0 && index < len(p.Sources) {
+		return &p.Sources[index]
+	}
+	return nil
+}
+
+// GetBinaryByName returns a provider-specific binary by name
+func (p *ProviderConfig) GetBinaryByName(name string) *Binary {
+	for i, binary := range p.Binaries {
+		if binary.Name == name {
+			return &p.Binaries[i]
+		}
+	}
+	return nil
+}
+
+// GetBinaryByIndex returns a provider-specific binary by index
+func (p *ProviderConfig) GetBinaryByIndex(index int) *Binary {
+	if index >= 0 && index < len(p.Binaries) {
+		return &p.Binaries[index]
+	}
+	return nil
+}
+
+// GetScriptByName returns a provider-specific script by name
+func (p *ProviderConfig) GetScriptByName(name string) *Script {
+	for i, script := range p.Scripts {
+		if script.Name == name {
+			return &p.Scripts[i]
+		}
+	}
+	return nil
+}
+
+// GetScriptByIndex returns a provider-specific script by index
+func (p *ProviderConfig) GetScriptByIndex(index int) *Script {
+	if index >= 0 && index < len(p.Scripts) {
+		return &p.Scripts[index]
+	}
+	return nil
+}
+
 // GetPlatformsAsStrings converts platform interface{} to []string
 func (c *CompatibilityEntry) GetPlatformsAsStrings() []string {
 	return interfaceToStringSlice(c.Platform)
@@ -582,4 +706,333 @@ func (p *Package) GetPackageNameOrDefault() string {
 		return p.PackageName
 	}
 	return p.Name
+}
+
+// Source represents a source code build configuration
+type Source struct {
+	Name            string                 `yaml:"name" json:"name"`
+	URL             string                 `yaml:"url" json:"url"`
+	Version         string                 `yaml:"version,omitempty" json:"version,omitempty"`
+	BuildSystem     string                 `yaml:"build_system" json:"build_system"`
+	BuildDir        string                 `yaml:"build_dir,omitempty" json:"build_dir,omitempty"`
+	SourceDir       string                 `yaml:"source_dir,omitempty" json:"source_dir,omitempty"`
+	InstallPrefix   string                 `yaml:"install_prefix,omitempty" json:"install_prefix,omitempty"`
+	ConfigureArgs   []string               `yaml:"configure_args,omitempty" json:"configure_args,omitempty"`
+	BuildArgs       []string               `yaml:"build_args,omitempty" json:"build_args,omitempty"`
+	InstallArgs     []string               `yaml:"install_args,omitempty" json:"install_args,omitempty"`
+	Prerequisites   []string               `yaml:"prerequisites,omitempty" json:"prerequisites,omitempty"`
+	Environment     map[string]string      `yaml:"environment,omitempty" json:"environment,omitempty"`
+	Checksum        string                 `yaml:"checksum,omitempty" json:"checksum,omitempty"`
+	CustomCommands  *SourceCustomCommands  `yaml:"custom_commands,omitempty" json:"custom_commands,omitempty"`
+}
+
+// SourceCustomCommands defines custom commands for build step overrides
+type SourceCustomCommands struct {
+	Download   string `yaml:"download,omitempty" json:"download,omitempty"`
+	Extract    string `yaml:"extract,omitempty" json:"extract,omitempty"`
+	Configure  string `yaml:"configure,omitempty" json:"configure,omitempty"`
+	Build      string `yaml:"build,omitempty" json:"build,omitempty"`
+	Install    string `yaml:"install,omitempty" json:"install,omitempty"`
+	Uninstall  string `yaml:"uninstall,omitempty" json:"uninstall,omitempty"`
+	Validation string `yaml:"validation,omitempty" json:"validation,omitempty"`
+	Version    string `yaml:"version,omitempty" json:"version,omitempty"`
+}
+
+// ValidateBuildSystem validates the build system type
+func (s *Source) ValidateBuildSystem() error {
+	validBuildSystems := []string{
+		"autotools", "cmake", "make", "meson", "ninja", "custom",
+		"configure", "automake", "autoconf", "bazel", "gradle", "maven",
+	}
+	
+	for _, valid := range validBuildSystems {
+		if s.BuildSystem == valid {
+			return nil
+		}
+	}
+	
+	return fmt.Errorf("invalid build system '%s', must be one of: %v", s.BuildSystem, validBuildSystems)
+}
+
+// ValidateRequiredFields validates that required fields are present
+func (s *Source) ValidateRequiredFields() error {
+	if s.Name == "" {
+		return fmt.Errorf("source name is required")
+	}
+	if s.URL == "" {
+		return fmt.Errorf("source URL is required")
+	}
+	if s.BuildSystem == "" {
+		return fmt.Errorf("build system is required")
+	}
+	return nil
+}
+
+// GenerateDefaults generates default values for build directories and install prefixes
+func (s *Source) GenerateDefaults(softwareName string) {
+	if s.BuildDir == "" {
+		s.BuildDir = fmt.Sprintf("/tmp/sai-build-%s", softwareName)
+	}
+	if s.SourceDir == "" {
+		version := s.Version
+		if version == "" {
+			version = "latest"
+		}
+		s.SourceDir = fmt.Sprintf("%s/%s-%s", s.BuildDir, softwareName, version)
+	}
+	if s.InstallPrefix == "" {
+		s.InstallPrefix = "/usr/local"
+	}
+}
+
+// GetBuildDirOrDefault returns the build directory or generates a default
+func (s *Source) GetBuildDirOrDefault(softwareName string) string {
+	if s.BuildDir != "" {
+		return s.BuildDir
+	}
+	return fmt.Sprintf("/tmp/sai-build-%s", softwareName)
+}
+
+// GetSourceDirOrDefault returns the source directory or generates a default
+func (s *Source) GetSourceDirOrDefault(softwareName string) string {
+	if s.SourceDir != "" {
+		return s.SourceDir
+	}
+	version := s.Version
+	if version == "" {
+		version = "latest"
+	}
+	buildDir := s.GetBuildDirOrDefault(softwareName)
+	return fmt.Sprintf("%s/%s-%s", buildDir, softwareName, version)
+}
+
+// GetInstallPrefixOrDefault returns the install prefix or defaults to /usr/local
+func (s *Source) GetInstallPrefixOrDefault() string {
+	if s.InstallPrefix != "" {
+		return s.InstallPrefix
+	}
+	return "/usr/local"
+}
+
+// Binary represents a binary download and installation configuration
+type Binary struct {
+	Name         string                 `yaml:"name" json:"name"`
+	URL          string                 `yaml:"url" json:"url"`
+	Version      string                 `yaml:"version,omitempty" json:"version,omitempty"`
+	Architecture string                 `yaml:"architecture,omitempty" json:"architecture,omitempty"`
+	Platform     string                 `yaml:"platform,omitempty" json:"platform,omitempty"`
+	Checksum     string                 `yaml:"checksum,omitempty" json:"checksum,omitempty"`
+	InstallPath  string                 `yaml:"install_path,omitempty" json:"install_path,omitempty"`
+	Executable   string                 `yaml:"executable,omitempty" json:"executable,omitempty"`
+	Archive      *ArchiveConfig         `yaml:"archive,omitempty" json:"archive,omitempty"`
+	Permissions  string                 `yaml:"permissions,omitempty" json:"permissions,omitempty"`
+	CustomCommands *BinaryCustomCommands `yaml:"custom_commands,omitempty" json:"custom_commands,omitempty"`
+}
+
+// ArchiveConfig defines configuration for handling compressed downloads
+type ArchiveConfig struct {
+	Format      string `yaml:"format,omitempty" json:"format,omitempty"`
+	StripPrefix string `yaml:"strip_prefix,omitempty" json:"strip_prefix,omitempty"`
+	ExtractPath string `yaml:"extract_path,omitempty" json:"extract_path,omitempty"`
+}
+
+// BinaryCustomCommands defines custom commands for installation step overrides
+type BinaryCustomCommands struct {
+	Download   string `yaml:"download,omitempty" json:"download,omitempty"`
+	Extract    string `yaml:"extract,omitempty" json:"extract,omitempty"`
+	Install    string `yaml:"install,omitempty" json:"install,omitempty"`
+	Uninstall  string `yaml:"uninstall,omitempty" json:"uninstall,omitempty"`
+	Validation string `yaml:"validation,omitempty" json:"validation,omitempty"`
+	Version    string `yaml:"version,omitempty" json:"version,omitempty"`
+}
+
+// ValidateRequiredFields validates that required fields are present
+func (b *Binary) ValidateRequiredFields() error {
+	if b.Name == "" {
+		return fmt.Errorf("binary name is required")
+	}
+	if b.URL == "" {
+		return fmt.Errorf("binary URL is required")
+	}
+	return nil
+}
+
+// GenerateDefaults generates default values for binary installation
+func (b *Binary) GenerateDefaults() {
+	if b.InstallPath == "" {
+		b.InstallPath = "/usr/local/bin"
+	}
+	if b.Permissions == "" {
+		b.Permissions = "0755"
+	}
+	if b.Executable == "" {
+		b.Executable = b.Name
+	}
+}
+
+// GetInstallPathOrDefault returns the install path or defaults to /usr/local/bin
+func (b *Binary) GetInstallPathOrDefault() string {
+	if b.InstallPath != "" {
+		return b.InstallPath
+	}
+	return "/usr/local/bin"
+}
+
+// GetPermissionsOrDefault returns the permissions or defaults to 0755
+func (b *Binary) GetPermissionsOrDefault() string {
+	if b.Permissions != "" {
+		return b.Permissions
+	}
+	return "0755"
+}
+
+// GetExecutableOrDefault returns the executable name or defaults to the binary name
+func (b *Binary) GetExecutableOrDefault() string {
+	if b.Executable != "" {
+		return b.Executable
+	}
+	return b.Name
+}
+
+// TemplateURL replaces OS/architecture placeholders in the URL
+func (b *Binary) TemplateURL(osName, arch string) string {
+	url := b.URL
+	
+	// Replace common OS placeholders
+	switch osName {
+	case "linux":
+		url = strings.ReplaceAll(url, "{{.OS}}", "linux")
+		url = strings.ReplaceAll(url, "{{.Platform}}", "linux")
+	case "darwin":
+		url = strings.ReplaceAll(url, "{{.OS}}", "darwin")
+		url = strings.ReplaceAll(url, "{{.Platform}}", "macos")
+	case "windows":
+		url = strings.ReplaceAll(url, "{{.OS}}", "windows")
+		url = strings.ReplaceAll(url, "{{.Platform}}", "windows")
+	}
+	
+	// Replace architecture placeholders
+	switch arch {
+	case "amd64", "x86_64":
+		url = strings.ReplaceAll(url, "{{.Arch}}", "amd64")
+		url = strings.ReplaceAll(url, "{{.Architecture}}", "x86_64")
+	case "arm64", "aarch64":
+		url = strings.ReplaceAll(url, "{{.Arch}}", "arm64")
+		url = strings.ReplaceAll(url, "{{.Architecture}}", "aarch64")
+	case "386", "i386":
+		url = strings.ReplaceAll(url, "{{.Arch}}", "386")
+		url = strings.ReplaceAll(url, "{{.Architecture}}", "i386")
+	}
+	
+	return url
+}
+
+// Script represents a script execution configuration
+type Script struct {
+	Name         string                 `yaml:"name" json:"name"`
+	URL          string                 `yaml:"url" json:"url"`
+	Version      string                 `yaml:"version,omitempty" json:"version,omitempty"`
+	Interpreter  string                 `yaml:"interpreter,omitempty" json:"interpreter,omitempty"`
+	Checksum     string                 `yaml:"checksum,omitempty" json:"checksum,omitempty"`
+	Arguments    []string               `yaml:"arguments,omitempty" json:"arguments,omitempty"`
+	Environment  map[string]string      `yaml:"environment,omitempty" json:"environment,omitempty"`
+	WorkingDir   string                 `yaml:"working_dir,omitempty" json:"working_dir,omitempty"`
+	Timeout      int                    `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+	CustomCommands *ScriptCustomCommands `yaml:"custom_commands,omitempty" json:"custom_commands,omitempty"`
+}
+
+// ScriptCustomCommands defines custom commands for execution step overrides
+type ScriptCustomCommands struct {
+	Download   string `yaml:"download,omitempty" json:"download,omitempty"`
+	Install    string `yaml:"install,omitempty" json:"install,omitempty"`
+	Uninstall  string `yaml:"uninstall,omitempty" json:"uninstall,omitempty"`
+	Validation string `yaml:"validation,omitempty" json:"validation,omitempty"`
+	Version    string `yaml:"version,omitempty" json:"version,omitempty"`
+}
+
+// ValidateRequiredFields validates that required fields are present
+func (s *Script) ValidateRequiredFields() error {
+	if s.Name == "" {
+		return fmt.Errorf("script name is required")
+	}
+	if s.URL == "" {
+		return fmt.Errorf("script URL is required")
+	}
+	return nil
+}
+
+// GenerateDefaults generates default values for script execution
+func (s *Script) GenerateDefaults() {
+	if s.Interpreter == "" {
+		// Auto-detect interpreter based on URL extension
+		if strings.HasSuffix(s.URL, ".sh") {
+			s.Interpreter = "bash"
+		} else if strings.HasSuffix(s.URL, ".py") {
+			s.Interpreter = "python3"
+		} else if strings.HasSuffix(s.URL, ".pl") {
+			s.Interpreter = "perl"
+		} else if strings.HasSuffix(s.URL, ".rb") {
+			s.Interpreter = "ruby"
+		} else {
+			s.Interpreter = "bash" // Default fallback
+		}
+	}
+	if s.WorkingDir == "" {
+		s.WorkingDir = "/tmp"
+	}
+	if s.Timeout == 0 {
+		s.Timeout = 300 // 5 minutes default timeout
+	}
+}
+
+// GetInterpreterOrDefault returns the interpreter or auto-detects based on URL
+func (s *Script) GetInterpreterOrDefault() string {
+	if s.Interpreter != "" {
+		return s.Interpreter
+	}
+	
+	// Auto-detect based on URL extension
+	if strings.HasSuffix(s.URL, ".sh") {
+		return "bash"
+	} else if strings.HasSuffix(s.URL, ".py") {
+		return "python3"
+	} else if strings.HasSuffix(s.URL, ".pl") {
+		return "perl"
+	} else if strings.HasSuffix(s.URL, ".rb") {
+		return "ruby"
+	}
+	
+	return "bash" // Default fallback
+}
+
+// GetWorkingDirOrDefault returns the working directory or defaults to /tmp
+func (s *Script) GetWorkingDirOrDefault() string {
+	if s.WorkingDir != "" {
+		return s.WorkingDir
+	}
+	return "/tmp"
+}
+
+// GetTimeoutOrDefault returns the timeout or defaults to 300 seconds
+func (s *Script) GetTimeoutOrDefault() int {
+	if s.Timeout > 0 {
+		return s.Timeout
+	}
+	return 300 // 5 minutes default
+}
+
+// ValidateEnvironment validates environment variable names and values
+func (s *Script) ValidateEnvironment() error {
+	for key, value := range s.Environment {
+		if key == "" {
+			return fmt.Errorf("environment variable name cannot be empty")
+		}
+		if strings.Contains(key, "=") {
+			return fmt.Errorf("environment variable name '%s' cannot contain '='", key)
+		}
+		if len(value) > 32768 { // 32KB limit for environment variables
+			return fmt.Errorf("environment variable '%s' value exceeds maximum length", key)
+		}
+	}
+	return nil
 }

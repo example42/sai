@@ -1,0 +1,70 @@
+version: "0.2"
+
+# Windows 11 specific overrides for docker script installation
+services:
+  - name: "daemon"
+    service_name: "com.docker.service"
+    type: "windows-service"
+    enabled: true
+
+files:
+  - name: "binary"
+    path: "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe"
+    type: "binary"
+    owner: "SYSTEM"
+    mode: "0755"
+
+directories:
+  - name: "program-files"
+    path: "C:\\Program Files\\Docker"
+    owner: "SYSTEM"
+    mode: "0755"
+  - name: "data"
+    path: "C:\\ProgramData\\Docker"
+    owner: "SYSTEM"
+    mode: "0755"
+
+commands:
+  - name: "docker"
+    path: "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe"
+    shell_completion: true
+
+scripts:
+  - name: "desktop-installer"
+    url: "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe"
+    version: "4.25.0"
+    interpreter: "powershell"
+    checksum: "sha256:d8a3892c58c33ee2b4b8e7c2c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8"
+    arguments: ["install", "--quiet", "--accept-license"]
+    environment:
+      DOCKER_DESKTOP_VERSION: "4.25.0"
+      INSTALL_PATH: "C:\\Program Files\\Docker\\Docker"
+    working_dir: "C:\\temp"
+    timeout: 1200
+    custom_commands:
+      download: "Invoke-WebRequest -Uri '{{url}}' -OutFile 'Docker Desktop Installer.exe' -UseBasicParsing"
+      install: ".\\\"Docker Desktop Installer.exe\" {{arguments | join(' ')}} && Start-Sleep -Seconds 30 && Start-Service -Name com.docker.service"
+      uninstall: ".\\\"Docker Desktop Installer.exe\" uninstall --quiet && Remove-Item -Path \"{{environment.INSTALL_PATH}}\" -Recurse -Force -ErrorAction SilentlyContinue"
+      validation: "docker --version && Get-Service -Name com.docker.service | Where-Object {$_.Status -eq 'Running'}"
+      version: "docker --version | Select-String -Pattern 'Docker version ([0-9.]+)' | ForEach-Object {$_.Matches[0].Groups[1].Value}"
+
+providers:
+  script:
+    scripts:
+      - name: "desktop-installer"
+        url: "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe"
+        version: "4.25.0"
+        interpreter: "powershell"
+        checksum: "sha256:d8a3892c58c33ee2b4b8e7c2c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8"
+        arguments: ["install", "--quiet", "--accept-license"]
+        environment:
+          DOCKER_DESKTOP_VERSION: "4.25.0"
+          INSTALL_PATH: "C:\\Program Files\\Docker\\Docker"
+        working_dir: "C:\\temp"
+        timeout: 1200
+        custom_commands:
+          download: "Invoke-WebRequest -Uri '{{url}}' -OutFile 'Docker Desktop Installer.exe' -UseBasicParsing"
+          install: ".\\\"Docker Desktop Installer.exe\" {{arguments | join(' ')}} && Start-Sleep -Seconds 30 && Start-Service -Name com.docker.service"
+          uninstall: ".\\\"Docker Desktop Installer.exe\" uninstall --quiet && Remove-Item -Path \"{{environment.INSTALL_PATH}}\" -Recurse -Force -ErrorAction SilentlyContinue"
+          validation: "docker --version && Get-Service -Name com.docker.service | Where-Object {$_.Status -eq 'Running'}"
+          version: "docker --version | Select-String -Pattern 'Docker version ([0-9.]+)' | ForEach-Object {$_.Matches[0].Groups[1].Value}"

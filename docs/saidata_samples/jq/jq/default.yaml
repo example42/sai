@@ -1,0 +1,114 @@
+version: "0.2"
+
+metadata:
+  name: "jq"
+  display_name: "jq"
+  description: "Command-line JSON processor"
+  version: "1.7.1"
+  category: "utility"
+  subcategory: "json"
+  tags: ["jq", "json", "processor", "command-line", "filter"]
+  license: "MIT"
+  language: "C"
+  maintainer: "jq contributors"
+  urls:
+    website: "https://jqlang.github.io/jq/"
+    documentation: "https://jqlang.github.io/jq/manual/"
+    source: "https://github.com/jqlang/jq"
+    issues: "https://github.com/jqlang/jq/issues"
+    download: "https://github.com/jqlang/jq/releases"
+    changelog: "https://github.com/jqlang/jq/releases"
+    license: "https://github.com/jqlang/jq/blob/master/COPYING"
+
+packages:
+  - name: "main"
+    package_name: "jq"
+    version: "1.7.1"
+
+files:
+  - name: "binary"
+    path: "/usr/bin/jq"
+    type: "binary"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+commands:
+  - name: "jq"
+    path: "/usr/bin/jq"
+    shell_completion: true
+    man_page: "jq(1)"
+
+sources:
+  - name: "main"
+    url: "https://github.com/jqlang/jq/releases/download/jq-{{version}}/jq-{{version}}.tar.gz"
+    version: "1.7.1"
+    build_system: "autotools"
+    install_prefix: "/usr/local"
+    prerequisites:
+      - "build-essential"
+      - "autoconf"
+      - "automake"
+      - "libtool"
+    custom_commands:
+      validation: "jq --version"
+      version: "jq --version 2>&1 | grep -o 'jq-[0-9.]*'"
+
+providers:
+  apt:
+    packages:
+      - name: "main"
+        package_name: "jq"
+
+  dnf:
+    packages:
+      - name: "main"
+        package_name: "jq"
+
+  brew:
+    packages:
+      - name: "main"
+        package_name: "jq"
+
+  source:
+    sources:
+      - name: "main"
+        url: "https://github.com/jqlang/jq/releases/download/jq-{{version}}/jq-{{version}}.tar.gz"
+        version: "1.7.1"
+        build_system: "autotools"
+        build_dir: "/tmp/sai-build-jq"
+        source_dir: "/tmp/sai-build-jq/jq-1.7.1"
+        custom_commands:
+          download: "wget -O jq-1.7.1.tar.gz https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-1.7.1.tar.gz"
+          extract: "tar -xzf jq-1.7.1.tar.gz"
+          configure: "./configure --prefix=/usr/local --disable-maintainer-mode"
+          build: "make -j$(nproc)"
+          install: "make install"
+          uninstall: "rm -f /usr/local/bin/jq /usr/local/share/man/man1/jq.1"
+          validation: "/usr/local/bin/jq --version"
+          version: "/usr/local/bin/jq --version 2>&1 | grep -o 'jq-[0-9.]*'"
+
+compatibility:
+  matrix:
+    - provider: "apt"
+      platform: ["ubuntu", "debian"]
+      architecture: ["amd64", "arm64", "i386"]
+      supported: true
+      recommended: true
+      tested: true
+    - provider: "dnf"
+      platform: ["fedora", "rhel", "centos", "rocky", "alma"]
+      architecture: ["amd64", "arm64"]
+      supported: true
+      recommended: true
+    - provider: "brew"
+      platform: "macos"
+      architecture: ["amd64", "arm64"]
+      supported: true
+      recommended: true
+    - provider: "source"
+      platform: ["linux", "macos"]
+      architecture: ["amd64", "arm64"]
+      supported: true
+      recommended: false
+      notes: "Requires autotools and build dependencies"

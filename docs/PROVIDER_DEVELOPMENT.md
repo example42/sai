@@ -34,9 +34,10 @@ SAI supports several types of providers:
 1. **Package Managers**: `apt`, `brew`, `dnf`, `yum`, `pacman`, etc.
 2. **Container Platforms**: `docker`, `helm`, `podman`
 3. **Language Package Managers**: `npm`, `pip`, `gem`, `cargo`, `go`
-4. **Specialized Tools**: `debug`, `security`, `monitoring`, `backup`
-5. **Cloud Platforms**: `aws`, `gcp`, `azure`
-6. **Custom Tools**: Any command-line tool that can be automated
+4. **Alternative Installation Methods**: `source`, `binary`, `script`
+5. **Specialized Tools**: `debug`, `security`, `monitoring`, `backup`
+6. **Cloud Platforms**: `aws`, `gcp`, `azure`
+7. **Custom Tools**: Any command-line tool that can be automated
 
 ### Provider Structure
 
@@ -421,6 +422,175 @@ sai uninstall test-package --provider my-provider --yes
 - Minimize required privileges
 - Validate inputs to prevent injection
 - Use secure download methods
+
+## Alternative Installation Providers
+
+SAI includes three specialized providers for alternative installation methods that go beyond traditional package managers:
+
+### Source Provider
+
+The source provider enables building software from source code with support for multiple build systems:
+
+```yaml
+version: "1.0"
+provider:
+  name: "source"
+  display_name: "Source Build Provider"
+  type: "source"
+  platforms: ["linux", "darwin"]
+  capabilities: ["install", "uninstall", "upgrade", "version", "info"]
+  executable: "make"  # Basic requirement for most builds
+
+actions:
+  install:
+    description: "Build and install from source"
+    steps:
+      - name: "Install prerequisites"
+        command: "{{sai_source(0, 'prerequisites_install_cmd')}}"
+        requires_root: true
+      - name: "Download source"
+        command: "{{sai_source(0, 'download_cmd')}}"
+      - name: "Extract source"
+        command: "{{sai_source(0, 'extract_cmd')}}"
+      - name: "Configure build"
+        command: "cd {{sai_source(0, 'source_dir')}} && {{sai_source(0, 'configure_cmd')}}"
+      - name: "Build software"
+        command: "cd {{sai_source(0, 'source_dir')}} && {{sai_source(0, 'build_cmd')}}"
+      - name: "Install software"
+        command: "cd {{sai_source(0, 'source_dir')}} && {{sai_source(0, 'install_cmd')}}"
+        requires_root: true
+    timeout: 1800
+    validation:
+      command: "{{sai_source(0, 'validation_cmd')}}"
+    rollback: "{{sai_source(0, 'uninstall_cmd')}}"
+```
+
+**Key Template Functions:**
+- `{{sai_source(index, field)}}` - Access source configuration
+- Supports autotools, cmake, make, meson, ninja build systems
+- Automatic prerequisite detection and installation
+- Build directory and path management
+
+### Binary Provider
+
+The binary provider handles downloading and installing pre-compiled binaries:
+
+```yaml
+version: "1.0"
+provider:
+  name: "binary"
+  display_name: "Binary Download Provider"
+  type: "binary"
+  platforms: ["linux", "darwin", "windows"]
+  capabilities: ["install", "uninstall", "upgrade", "version", "info"]
+  executable: "wget"  # Or curl for downloads
+
+actions:
+  install:
+    description: "Download and install binary"
+    steps:
+      - name: "Download binary"
+        command: "{{sai_binary(0, 'download_cmd')}}"
+      - name: "Verify checksum"
+        command: "{{sai_binary(0, 'verify_cmd')}}"
+      - name: "Extract archive"
+        command: "{{sai_binary(0, 'extract_cmd')}}"
+      - name: "Install binary"
+        command: "{{sai_binary(0, 'install_cmd')}}"
+        requires_root: true
+    timeout: 600
+    validation:
+      command: "{{sai_binary(0, 'validation_cmd')}}"
+    rollback: "{{sai_binary(0, 'uninstall_cmd')}}"
+```
+
+**Key Template Functions:**
+- `{{sai_binary(index, field)}}` - Access binary configuration
+- OS/architecture templating in URLs
+- Automatic archive extraction (zip, tar.gz, etc.)
+- Checksum verification for security
+
+### Script Provider
+
+The script provider executes installation scripts with safety measures:
+
+```yaml
+version: "1.0"
+provider:
+  name: "script"
+  display_name: "Script Installation Provider"
+  type: "script"
+  platforms: ["linux", "darwin", "windows"]
+  capabilities: ["install", "uninstall", "version", "info"]
+  executable: "bash"  # Or sh, python, etc.
+
+actions:
+  install:
+    description: "Execute installation script"
+    steps:
+      - name: "Download script"
+        command: "{{sai_script(0, 'download_cmd')}}"
+      - name: "Verify script"
+        command: "{{sai_script(0, 'verify_cmd')}}"
+      - name: "Execute script"
+        command: "{{sai_script(0, 'install_cmd')}}"
+        requires_root: true
+    timeout: 900
+    validation:
+      command: "{{sai_script(0, 'validation_cmd')}}"
+    rollback: "{{sai_script(0, 'uninstall_cmd')}}"
+```
+
+**Key Template Functions:**
+- `{{sai_script(index, field)}}` - Access script configuration
+- Environment variable management
+- Interactive prompt handling
+- Security verification with checksums
+
+### Alternative Provider SaiData Configuration
+
+These providers require specific saidata configurations:
+
+```yaml
+# Example: nginx with source build
+version: "0.2"
+metadata:
+  name: "nginx"
+  description: "High-performance web server"
+
+# Source build configuration
+sources:
+  - name: "main"
+    url: "http://nginx.org/download/nginx-{{version}}.tar.gz"
+    version: "1.24.0"
+    build_system: "autotools"
+    prerequisites: ["build-essential", "libssl-dev", "libpcre3-dev"]
+    configure_args: ["--with-http_ssl_module", "--with-http_v2_module"]
+
+# Binary download configuration  
+binaries:
+  - name: "main"
+    url: "https://github.com/nginx/nginx/releases/download/v{{version}}/nginx-{{version}}-{{os}}-{{arch}}.tar.gz"
+    version: "1.24.0"
+    executable: "nginx"
+    checksum: "sha256:abc123..."
+
+# Script installation configuration
+scripts:
+  - name: "main"
+    url: "https://nginx.org/packages/install.sh"
+    interpreter: "bash"
+    arguments: "--version {{version}}"
+    checksum: "sha256:def456..."
+```
+
+### Security Considerations for Alternative Providers
+
+1. **Source Builds**: Verify source integrity, use trusted mirrors
+2. **Binary Downloads**: Always verify checksums, use HTTPS URLs
+3. **Script Execution**: Require user consent, verify script signatures
+4. **Sandboxing**: Consider containerized builds for isolation
+5. **Rollback**: Implement proper cleanup and rollback procedures
 
 ## Examples
 

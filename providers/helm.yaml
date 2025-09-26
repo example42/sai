@@ -56,6 +56,31 @@ actions:
       namespace: "{{sai_package(0, 'package_name', 'helm')}}"
       chart_repo: "{{sai_package(0, 'package_name', 'helm')}}-repo"
 
+
+
+  info:
+    description: "Show Helm chart information"
+    template: "helm show chart {{chart_repo}}/{{sai_package(0, 'package_name', 'helm')}}"
+    variables:
+      chart_repo: "{{sai_package(0, 'package_name', 'helm')}}-repo"
+
+  search:
+    description: "Search for Helm charts"
+    template: "helm search repo {{sai_package(0, 'package_name', 'helm')}}"
+
+  list:
+    description: "List Helm releases"
+    template: "helm list -n {{namespace}} | grep {{sai_package(0, 'package_name', 'helm')}}"
+    variables:
+      namespace: "{{sai_package(0, 'package_name', 'helm')}}"
+
+  version:
+    description: "Show Helm release version"
+    template: "helm list -n {{namespace}} -o json | jq '.[] | select(.name==\"{{release_name}}\") | .app_version'"
+    variables:
+      release_name: "{{sai_package(0, 'package_name', 'helm')}}-release"
+      namespace: "{{sai_package(0, 'package_name', 'helm')}}"
+
   start:
     description: "Scale up Kubernetes deployment"
     template: "kubectl scale deployment {{sai_package(0, 'package_name', 'helm')}} --replicas=1 -n {{namespace}}"
@@ -85,27 +110,4 @@ actions:
     description: "Show Kubernetes pod logs"
     template: "kubectl logs -l app={{sai_package(0, 'package_name', 'helm')}} -n {{namespace}} --tail=50"
     variables:
-      namespace: "{{sai_package(0, 'package_name', 'helm')}}"
-
-  info:
-    description: "Show Helm chart information"
-    template: "helm show chart {{chart_repo}}/{{sai_package(0, 'package_name', 'helm')}}"
-    variables:
-      chart_repo: "{{sai_package(0, 'package_name', 'helm')}}-repo"
-
-  search:
-    description: "Search for Helm charts"
-    template: "helm search repo {{sai_package(0, 'package_name', 'helm')}}"
-
-  list:
-    description: "List Helm releases"
-    template: "helm list -n {{namespace}} | grep {{sai_package(0, 'package_name', 'helm')}}"
-    variables:
-      namespace: "{{sai_package(0, 'package_name', 'helm')}}"
-
-  version:
-    description: "Show Helm release version"
-    template: "helm list -n {{namespace}} -o json | jq '.[] | select(.name==\"{{release_name}}\") | .app_version'"
-    variables:
-      release_name: "{{sai_package(0, 'package_name', 'helm')}}-release"
       namespace: "{{sai_package(0, 'package_name', 'helm')}}"

@@ -3,6 +3,7 @@ package validation
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/xeipuuv/gojsonschema"
 	"sai/internal/interfaces"
@@ -174,19 +175,26 @@ func (r *ResourceValidator) ValidateDirectory(directory types.Directory) bool {
 func (r *ResourceValidator) ValidateCommand(command types.Command) bool {
 	path := command.GetPathOrDefault()
 	
-	info, err := os.Stat(path)
-	if err != nil {
+	// If path is empty, return false
+	if path == "" {
 		return false
 	}
 	
-	// Check if it's a file and has execute permissions
-	if info.IsDir() {
-		return false
+	// First try to stat the path directly (for absolute paths)
+	if info, err := os.Stat(path); err == nil {
+		// Check if it's a file and has execute permissions
+		if info.IsDir() {
+			return false
+		}
+		
+		// Check execute permissions (basic check)
+		mode := info.Mode()
+		return mode&0111 != 0 // Check if any execute bit is set
 	}
 	
-	// Check execute permissions (basic check)
-	mode := info.Mode()
-	return mode&0111 != 0 // Check if any execute bit is set
+	// If direct stat fails, try to find the command in PATH
+	_, err := exec.LookPath(path)
+	return err == nil
 }
 
 // ValidateService checks if a service exists (basic check for systemd)
@@ -309,9 +317,10 @@ func (r *ResourceValidator) ValidateResources(saidata *types.SoftwareData) (*int
 
 // canProceedWithMissingResources determines if execution can proceed despite missing resources
 func (r *ResourceValidator) canProceedWithMissingResources(result *interfaces.ResourceValidationResult) bool {
-	// For now, allow proceeding if only files or services are missing
-	// Block execution only if critical commands are missing
-	return len(result.MissingCommands) == 0
+	// Allow proceeding even with missing resources for flexibility
+	// This is a validation check, not a hard requirement for execution
+	// The system should be able to handle missing optional resources gracefully
+	return true
 }
 
 

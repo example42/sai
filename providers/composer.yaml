@@ -8,7 +8,7 @@ provider:
   type: "package_manager"
   platforms: ["linux", "macos", "windows"]
   executable: "composer"  # Main executable for availability detection
-  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version", "start", "stop", "restart", "status"]
+  capabilities: ["install", "uninstall", "upgrade", "search", "info", "list", "version"]
 
 actions:
   install:
@@ -35,26 +35,7 @@ actions:
     timeout: 300
     detection: "composer show {{sai_package(0, 'package_name', 'composer')}} >/dev/null 2>&1"
 
-  start:
-    description: "Start PHP application"
-    template: "php {{sai_command(0, 'path', 'composer')}}"
 
-  stop:
-    description: "Stop PHP application"
-    template: "pkill -f {{sai_package(0, 'package_name', 'composer')}}"
-
-  restart:
-    description: "Restart PHP application"
-    steps:
-      - name: "stop-app"
-        command: "pkill -f {{sai_package(0, 'package_name', 'composer')}}"
-        ignore_failure: true
-      - name: "start-app"
-        command: "php {{sai_command(0, 'path', 'composer')}}"
-
-  status:
-    description: "Check application status"
-    template: "pgrep -f {{sai_package(0, 'package_name', 'composer')}}"
 
   info:
     description: "Show package information"
